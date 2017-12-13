@@ -1,0 +1,74 @@
+(*TOP*
+ (@
+  (*NAMESPACES*
+   (rridType "http://scicrunch.org/resources/schema/rrid-type-0")))
+ (resource
+  (@ (xmlns "http://scicrunch.org/resources/schema/rrid-core-0"))
+  (identifier
+   (@ (identifierType "URL"))
+   "http://scicrunch.org/resolver/SCR_003070")
+  (properCitation
+   (@ (render-as "Proper Citation") (type "Inline Text Citation"))
+   "(ImageJ, RRID:SCR_003070)")
+  (titles
+   (title (@ (xml:lang "en-US") (titleType "AlternativeTitle")) "Image J")
+   (title
+    (@ (xml:lang "en-US") (titleType "AlternativeTitle"))
+    "ImageJ - Image Processing and Analysis in Java"))
+  (publisher "SciCrunch Registry")
+  (description
+   (@ (xml:lang "en-US"))
+   "A Java image processing program which can display, edit, analyze, process, save and print 8-bit, 16-bit and 32-bit images. It can read many image formats including TIFF, GIF, JPEG, BMP, DICOM, FITS and raw. It runs, either as an online applet or as a downloadable application, on any computer with a Java 1.4 or later virtual machine. Downloadable distributions are available for Windows, Mac OS, Mac OS X and Linux. It supports stacks, a series of images that share a single window. It is multithreaded, so time-consuming operations such as image file reading can be performed in parallel with other operations. It can calculate area and pixel value statistics of user-defined selections. It can measure distances and angles. It can create density histograms and line profile plots. It supports standard image processing functions such as contrast manipulation, sharpening, smoothing, edge detection and median filtering. It does geometric transformations such as scaling, rotation and flips. Image can be zoomed up to 32:1 and down to 1:32. All analysis and processing functions are available at any magnification factor. The program supports any number of windows (images) simultaneously, limited only by available memory. Spatial calibration is available to provide real world dimensional measurements in units such as millimeters. Density or gray scale calibration is also available. ImageJ was designed with an open architecture that provides extensibility via Java plugins. Custom acquisition, analysis and processing plugins can be developed using ImageJ built in editor and Java compiler. User-written plugins make it possible to solve almost any image processing or analysis problem.")
+  (subjects
+   (subject (@ (xml:lang "en-US")) "imaging")
+   (subject (@ (xml:lang "en-US")) "image processing software")
+   (subject (@ (xml:lang "en-US")) "plug-in")
+   (subject (@ (xml:lang "en-US")) "macros")
+   (subject (@ (xml:lang "en-US")) "microscopy")
+   (subject (@ (xml:lang "en-US")) "java")
+   (subject (@ (xml:lang "en-US")) "magnetic resonance"))
+  (dates
+   (date (@ (dateType "Submitted")) "2010-09-21T00:00:00+00:00")
+   (date (@ (dateType "Updated")) "2017-05-04T21:52:00+00:00"))
+  (resourceType
+   (@ (resourceTypeGeneral "Software"))
+   "Image Processing Software")
+  (alternateIdentifiers
+   (alternateIdentifier (@ (alternateIdentifierType "RRID")) "RRID:SCR_003070")
+   (alternateIdentifier
+    (@ (alternateIdentifierType "RRID"))
+    "RRID:nif-0000-30467")
+   (alternateIdentifier
+    (@ (alternateIdentifierType "RRID"))
+    "RRID:rid_000070"))
+  (relatedIdentifiers
+   (relatedIdentifier
+    (@
+     (relatedIdentifierType "URL")
+     (relationType "IsIdenticalTo")
+     (resourceTypeGeneral "Software"))
+    "http://n2t.net/RRID:SCR_003070")
+   (relatedIdentifier
+    (@
+     (relatedIdentifierType "URL")
+     (relationType "IsIdenticalTo")
+     (resourceTypeGeneral "Software"))
+    "http://identifiers.org/RRID:SCR_003070")
+   (relatedIdentifier
+    (@
+     (relatedIdentifierType "URL")
+     (relationType "IsDerivedFrom")
+     (resourceTypeGeneral "Software"))
+    "http://uri.scicrunch.org/registry/SCR_003070")
+   (relatedIdentifier
+    (@
+     (relatedIdentifierType "URL")
+     (relationType "IsCompiledBy")
+     (resourceTypeGeneral "Service"))
+    "https://scicrunch.org/browse/resourcedashboard")
+   (relatedIdentifier
+    (@
+     (relatedIdentifierType "URL")
+     (relationType "Describes")
+     (resourceTypeGeneral "Service"))
+    "https://imagej.nih.gov/ij/"))))
