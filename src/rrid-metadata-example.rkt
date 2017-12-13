@@ -137,7 +137,7 @@
 (dict-for-each (car (dump-recs))
                (λ (i rec) 
                  (when (> i -1)
-                   (begin (save-sexp rec (format "../examples/test-rec-~a.rkt" i))
+                   (begin (save-sexp rec (format "../examples/test-rec-~a.sxml" i))
                           (save-sxml rec (format "../examples/test-rec-~a.xml" i))
                           (load-sxml (format "../examples/test-rec-~a.xml" i) `((#f . ,schema-url)))  ; roundtrip test
                           void))))
