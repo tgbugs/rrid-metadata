@@ -1,0 +1,39 @@
+* RRID Metadata Schema
+  This repo contains an experimental implementation for a core RRID metadata schema.
+  It is basically the [[https://schema.datacite.org/][DataCite metadata schema]] with a few additions and slightly
+  expanded semantics.
+  
+  The implementation is in [[https://racket-lang.org][Racket]] and uses SXML as as the tree representation.
+  SXML can be exported directly to XML. I have not written a conversion to json
+  yet, but it should be fairly straight forward.
+  
+* NOTICE
+  The contents of this repository are preliminary and should in no way be considered
+  final or definitive.
+  
+* Differences from DataCite
+** resource -> resourceType -> resourceTypeGeneral -> Material (new!)
+   The digital resources that receive RRIDs can be construed to fit under the =Software=
+   or =Services= values for =resourceTypeGeneral=. However, because RRIDs also cover
+   living organisms and other 'animate' beings, the =PhysicalObject= value is not
+   sufficient. Therefore we have added =Material= as an additional value which should
+   be considered to cover anything that is physical and animate, or classes of animate
+   or biological entities. The reason we need to add this instead of extending the
+   semantics of =PhysicalObject= is that many of the resources that we need to identify
+   do not have a definite confined and closed physical being, they often cover every
+   member of a strain of a particular species and have a tendency to run away or get
+   lost and generally defy unique identification. In addition while things like antibodies
+   could be construed as 'inanimate' objects, this seems to be a stretch.
+*** Guidance for dealing with dynamic data sources
+    Databases should be =(resourceType (@ resourceTypeGeneral "Service") "Database")=.
+    If we want to elaborate on these resource types we will add a additional tag.
+** resource -> contributors -> contributor -> @ -> contributorType -> Distributor (extended semantics)
+   The semantics of Distributor have been expanded to include vendors of various
+   material resources such as antibodies.
+** resource -> properCitation (new!)
+   The =properCitation= tag is used to provide the properly formatted inline text citation for
+   the resource. Authors should be able to copy and paste this directly into their paper.
+** resource -> JATSCitation (experimental)
+   Working on a way to get the JATS tags into the xml in a way that can be copied an pasted out.
+   Unfortunately this results in =&lt;= and =&gt;= showing up in the xml version.
+
