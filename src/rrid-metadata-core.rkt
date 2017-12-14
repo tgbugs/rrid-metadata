@@ -44,9 +44,15 @@
   ; marginally conformant to datacite metadata
   ; note that we are closer to a physical sample use case than a publishing use case
   `(*TOP*
+    ;(*PI* xml-stylesheet "href=\"#style\" type=\"text/css\"");(@ (href "#style") (type "text/css")))
     (@ (*NAMESPACES* (rridType "http://scicrunch.org/resources/schema/rrid-type-0")))
     ,(filter-empty
       `(resource
+        ;(extras (@ (id "style"))  ; this doesn't really work as desired
+                ;"resource { display: block; }
+                 ;title, publisher { display: block; }
+                 ;extras { display: none; }
+                ;")
         (@ (xmlns ,schema-url))
         (identifier (@ (identifierType "RRID")) ,(string-append "RRID:" (symbol->string primary-id)))
         (properCitation (@ (render-as "Proper Citation")  ; XXX RRID addition
@@ -120,8 +126,8 @@
 
 (define (subjects-format subjects)
   (let ([out (cons 'subjects (for/list ([s subjects]) `(subject (@ (xml:lang "en-US")) ,s)))])
-    (pretty-write subjects)
-    (pretty-write out)
+    ;(pretty-write subjects)
+    ;(pretty-write out)
     out))
 
 (define (contrib-format contributorType contributorName)  ; TODO binding macro
@@ -236,7 +242,7 @@
             '()
             (cons 'contributors (map (λ (l) (apply contrib-format l)) contrib-list))))) 
 
-    (define type-specific-record
+    (define type-specific-record (lambda () ;do not run right now...
       (cons (string->symbol (format "rridType:~s" identifier-type))
             (cons `(identifier (@ (type "local")) ,(symbol->string primary-id))  ; (type "fragment") 
                   (append
@@ -252,7 +258,7 @@
                                        (error (format "Your tag ~a is being used for listing things but doesn't end in s!" f))))
                                  (list rec)))))
                    `((citationFormat ,(format "~s" (gtr identifier-type 'format))))  ; FIXME provide a link to the formatting rules doc instead
-                   ))))
+                   )))))
     (let ([record (record-format
                    #:id primary-id
                    #:altids altids
@@ -270,7 +276,7 @@
                                    (if out `(description (@ (xml:lang "en-US")) ,out) '()))
                    #:subjects subjects
                    #:publisher issuing-source)])
-      (add-rec record to-resolve #:resolve->source (gtr identifier-type 'resolve->source #f))
-      record))
+      (add-rec record to-resolve)
+      record))  ; return void here?
   make-record)
 

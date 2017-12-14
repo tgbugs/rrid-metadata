@@ -1,0 +1,20 @@
+<resource xmlns="http://scicrunch.org/resources/schema/rrid-core-0">
+  <identifier identifierType="RRID">RRID:PREFIX_1234567</identifier>
+  <properCitation render-as="Proper Citation" type="Inline Text Citation">(We need this for the proper citation, RRID:PREFIX_1234567)</properCitation>
+  <titles>
+    <title xml:lang="en-US">Fake resource</title>
+  </titles>
+  <publisher>Fake Source</publisher>
+  <dates>
+    <date dateType="Submitted">2005-03-18T01:58:31+00:00</date>
+    <date dateType="Updated">2008-09-24T02:10:22+00:00</date>
+  </dates>
+  <resourceType resourceTypeGeneral="Material">Cookies</resourceType>
+  <relatedIdentifiers>
+    <relatedIdentifier relatedIdentifierType="URL" relationType="IsIdenticalTo" resourceTypeGeneral="Material">http://scicrunch.org/resolver/RRID:PREFIX_1234567</relatedIdentifier>
+    <relatedIdentifier relatedIdentifierType="URL" relationType="IsIdenticalTo" resourceTypeGeneral="Material">http://n2t.net/RRID:PREFIX_1234567</relatedIdentifier>
+    <relatedIdentifier relatedIdentifierType="URL" relationType="IsIdenticalTo" resourceTypeGeneral="Material">http://identifiers.org/RRID:PREFIX_1234567</relatedIdentifier>
+    <relatedIdentifier relatedIdentifierType="URL" relationType="IsDerivedFrom" resourceTypeGeneral="Material">http://fake.example.org/fake/PREFIX_1234567</relatedIdentifier>
+    <relatedIdentifier relatedIdentifierType="URL" relationType="IsCompiledBy" resourceTypeGeneral="Service">http://fake.example.org</relatedIdentifier>
+  </relatedIdentifiers>
+</resource>

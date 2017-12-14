@@ -6,6 +6,8 @@
          "rrid-metadata-core.rkt"
          "rrid-metadata-database.rkt")
 
+(provide rrid->response rrid->record)  ; FIXME this is a bit and brittle, need to decouple make-record from submit-record...
+
 ;; notes
 ; for resourceTypeGeneral
 ; we use all of the datacite fields
@@ -40,28 +42,43 @@
    (antibody . #hash((url . "http://antibodyregistry.org")
                      (namespace . "http://antibodyregistry.org/")
                      (source . "Antibody Registry")
-                     (fields . (catalogNumber))
+                     ;(fields . (catalogNumber))
                      (format . ("(~a Cat# ~a, ~a)" vendor catalogNumber identifier))
                      ;(subjects . (""))  ; TODO there are some potential additional things we could put here
                      (resourceType . "Antibody")
                      (resourceTypeGeneral . "Material")
                      ))
-   (fake . #hash((asdf . asdf)))  ; TODO
+   (fake . #hash((url . "http://fake.example.org")
+                 (namespace . "http://fake.example.org/fake/")
+                 (source . "Fake Source")
+                 (format . ("(~a, ~a)" something identifier))
+                 (resourceType . "Cookies")
+                 (resourceTypeGeneral . "Material")
+                 (resolve->source . #t)))  ; we set the resolve rules at source level
    (digital . #hash((url . "https://scicrunch.org/browse/resourcedashboard")  ; can i just state that this is confusing as
                     (namespace . "http://uri.scicrunch.org/registry/")
                     (source .  "SciCrunch Registry")
-                    (fields . (resourceTypes))  ; TODO resource types via identifiers (from resources.ttl) RRIDTypeGeneral  ; FIXME this errors if not present
+                    ;(fields . (resourceTypes))  ; TODO resource types via identifiers (from resources.ttl) RRIDTypeGeneral  ; FIXME this errors if not present
                     (format . ("(~a, ~a)" title identifier))))))
+
+;; pass our source info into the db so that it can configure the resolving behavior
+
+(init-db identifier-sources)
+ 
+;; setup make-record
+
+(define make-record (make-make-record identifier-sources add-rec))
 
 ;; record invariant structure per source
 
 (define (fake-rec #:title title
                   #:insert_time submitted
-                  #:curate_time updated)
+                  #:curate_time updated
+                  #:something something)
   (make-hash (list (bndc title)
                    (*bdc submitted epoch->iso-8601)
                    (*bdc updated epoch->iso-8601)
-                   '(resolve->source . #t))))
+                   (bndc something))))
 
 (define (ab-rec #:title title
                 #:insert_time submitted
@@ -99,21 +116,7 @@
                    (bndc resourceTypes)  ; TODO RRIDTypeGeneral manditory, ResourceTypeGeneral optional
                    (bndc synonyms))))
 
-;; setup make-record
-
-(define make-record (make-make-record identifier-sources add-rec))
-
 ;; test records (these will ultimately come from the elastic search bit)
-
-(make-record 'fake
-             'PREFIX_1234567 ; ab_id_old column name for the old id denormalized
-             #:record
-             (fake-rec
-              #:title "Mouse/Rat Neuropilin-1 Affinity Purified Polyclonal Ab antibody"
-              #:insert_time 1385490191 ; FIXME epoch set as the minimum i could find in the table, but possibly innacurate
-              #:curate_time 1441819651
-              #:vendor "R and D Systems"
-              #:catalog-number "AF566"))
 
 (make-record 'antibody
              'AB_355445 'AB_10083848 ; ab_id_old column name for the old id denormalized
@@ -150,6 +153,15 @@
                            "magnetic resonance")
               #:synonyms '("ImageJ - Image Processing and Analysis in Java"
                            "Image J")))
+
+(make-record 'fake
+             'PREFIX_1234567
+             #:record
+             (fake-rec
+              #:title "Fake resource"
+              #:insert_time 1111111111 ; FIXME epoch set as the minimum i could find in the table, but possibly innacurate
+              #:curate_time 1222222222
+              #:something "We need this for the proper citation"))
 
 ; dump the records from the database and write reprs to file
 

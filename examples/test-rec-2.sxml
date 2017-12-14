@@ -1,0 +1,47 @@
+(*TOP*
+ (@
+  (*NAMESPACES*
+   (rridType "http://scicrunch.org/resources/schema/rrid-type-0")))
+ (resource
+  (@ (xmlns "http://scicrunch.org/resources/schema/rrid-core-0"))
+  (identifier (@ (identifierType "RRID")) "RRID:PREFIX_1234567")
+  (properCitation
+   (@ (render-as "Proper Citation") (type "Inline Text Citation"))
+   "(We need this for the proper citation, RRID:PREFIX_1234567)")
+  (titles (title (@ (xml:lang "en-US")) "Fake resource"))
+  (publisher "Fake Source")
+  (dates
+   (date (@ (dateType "Submitted")) "2005-03-18T01:58:31+00:00")
+   (date (@ (dateType "Updated")) "2008-09-24T02:10:22+00:00"))
+  (resourceType (@ (resourceTypeGeneral "Material")) "Cookies")
+  (relatedIdentifiers
+   (relatedIdentifier
+    (@
+     (relatedIdentifierType "URL")
+     (relationType "IsIdenticalTo")
+     (resourceTypeGeneral "Material"))
+    "http://scicrunch.org/resolver/RRID:PREFIX_1234567")
+   (relatedIdentifier
+    (@
+     (relatedIdentifierType "URL")
+     (relationType "IsIdenticalTo")
+     (resourceTypeGeneral "Material"))
+    "http://n2t.net/RRID:PREFIX_1234567")
+   (relatedIdentifier
+    (@
+     (relatedIdentifierType "URL")
+     (relationType "IsIdenticalTo")
+     (resourceTypeGeneral "Material"))
+    "http://identifiers.org/RRID:PREFIX_1234567")
+   (relatedIdentifier
+    (@
+     (relatedIdentifierType "URL")
+     (relationType "IsDerivedFrom")
+     (resourceTypeGeneral "Material"))
+    "http://fake.example.org/fake/PREFIX_1234567")
+   (relatedIdentifier
+    (@
+     (relatedIdentifierType "URL")
+     (relationType "IsCompiledBy")
+     (resourceTypeGeneral "Service"))
+    "http://fake.example.org"))))
