@@ -49,7 +49,9 @@
 
   (define (rrid->response rrid #:xml [xml #f])
     (let* ([index (rrid->index rrid)]  ; TODO index->response
-           [record (if index (index->record index) '(404))])
+           [record (if index
+                       (index->record index)
+                       `(302 ,(string-append "http://scicrunch.org/resolver/" rrid)))])  ; fail to SciCrunch FIXME extension
       (if index  ; fun here is that zero does not cast to #f :D so we are safe
           (if (member (car ((txpath "//publisher/text()") record)) resolve->source-sources)
               `(303 ,(car ((txpath "//relatedIdentifier[contains(@relationType, 'IsDerivedFrom')]/text()") record)))  ; vs 302

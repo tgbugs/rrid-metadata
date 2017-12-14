@@ -26,17 +26,22 @@
          [mime-type (if (< code 300) #"application/xml" #"text/html")])
     ;(displayln resp)
     ;(when (equal? path "RRID:sleep") (sleep 10))  ; continuations are cool
-    (if (= code 303)
-        (redirect-to resp see-other)
-        (response/full code message (current-seconds) mime-type '() (list (string->bytes/utf-8 resp))))))
+    (cond ((= code 303) (redirect-to resp see-other))
+          ((= code 302) (redirect-to resp temporarily))
+          (#t (response/full code message (current-seconds) mime-type '() (list (string->bytes/utf-8 resp)))))))
         ;(response code (string->bytes/utf-8 resp) (current-seconds) mime-type '() void))))  ; instead of void could stream
 
+(define (responder url exn)
+  (response/full 500 #"Internal Server Error"
+                 (current-seconds) #"text/html"
+                 '() '(#"Internal Server Error")))
 
 (define path "/")
 (serve/servlet resolver
                 #:port 4483
                 #:servlet-path path
                 #:servlet-regexp (regexp (format "^~a(RRID:.+)*$" (regexp-quote path)))
+                #:servlet-responder responder  ; prevent stack trace from leaking
                 #:stateless? #t
                 #:banner? #f
                 #:launch-browser? #f
