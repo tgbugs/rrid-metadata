@@ -46,6 +46,7 @@
                      (resourceType . "Antibody")
                      (resourceTypeGeneral . "Material")
                      ))
+   (fake . #hash((asdf . asdf)))  ; TODO
    (digital . #hash((url . "https://scicrunch.org/browse/resourcedashboard")  ; can i just state that this is confusing as
                     (namespace . "http://uri.scicrunch.org/registry/")
                     (source .  "SciCrunch Registry")
@@ -53,6 +54,14 @@
                     (format . ("(~a, ~a)" title identifier))))))
 
 ;; record invariant structure per source
+
+(define (fake-rec #:title title
+                  #:insert_time submitted
+                  #:curate_time updated)
+  (make-hash (list (bndc title)
+                   (*bdc submitted epoch->iso-8601)
+                   (*bdc updated epoch->iso-8601)
+                   '(resolve->source . #t))))
 
 (define (ab-rec #:title title
                 #:insert_time submitted
@@ -95,6 +104,16 @@
 (define make-record (make-make-record identifier-sources add-rec))
 
 ;; test records (these will ultimately come from the elastic search bit)
+
+(make-record 'fake
+             'PREFIX_1234567 ; ab_id_old column name for the old id denormalized
+             #:record
+             (fake-rec
+              #:title "Mouse/Rat Neuropilin-1 Affinity Purified Polyclonal Ab antibody"
+              #:insert_time 1385490191 ; FIXME epoch set as the minimum i could find in the table, but possibly innacurate
+              #:curate_time 1441819651
+              #:vendor "R and D Systems"
+              #:catalog-number "AF566"))
 
 (make-record 'antibody
              'AB_355445 'AB_10083848 ; ab_id_old column name for the old id denormalized

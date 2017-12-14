@@ -1,5 +1,5 @@
 <resource xmlns="http://scicrunch.org/resources/schema/rrid-core-0">
-  <identifier identifierType="URL">http://scicrunch.org/resolver/AB_355445</identifier>
+  <identifier identifierType="RRID">RRID:AB_355445</identifier>
   <properCitation render-as="Proper Citation" type="Inline Text Citation">(R and D Systems Cat# AF566, RRID:AB_355445)</properCitation>
   <titles>
     <title xml:lang="en-US">Mouse/Rat Neuropilin-1 Affinity Purified Polyclonal Ab antibody</title>
@@ -16,11 +16,11 @@
   </dates>
   <resourceType resourceTypeGeneral="Material">Antibody</resourceType>
   <alternateIdentifiers>
-    <alternateIdentifier alternateIdentifierType="RRID">RRID:AB_355445</alternateIdentifier>
     <alternateIdentifier alternateIdentifierType="RRID">RRID:AB_10083848</alternateIdentifier>
     <alternateIdentifier alternateIdentifierType="R and D Systems catalog number">AF566</alternateIdentifier>
   </alternateIdentifiers>
   <relatedIdentifiers>
+    <relatedIdentifier relatedIdentifierType="URL" relationType="IsIdenticalTo" resourceTypeGeneral="Material">http://scicrunch.org/resolver/RRID:AB_355445</relatedIdentifier>
     <relatedIdentifier relatedIdentifierType="URL" relationType="IsIdenticalTo" resourceTypeGeneral="Material">http://n2t.net/RRID:AB_355445</relatedIdentifier>
     <relatedIdentifier relatedIdentifierType="URL" relationType="IsIdenticalTo" resourceTypeGeneral="Material">http://identifiers.org/RRID:AB_355445</relatedIdentifier>
     <relatedIdentifier relatedIdentifierType="URL" relationType="IsDerivedFrom" resourceTypeGeneral="Material">http://antibodyregistry.org/AB_355445</relatedIdentifier>

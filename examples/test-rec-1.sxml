@@ -4,9 +4,7 @@
    (rridType "http://scicrunch.org/resources/schema/rrid-type-0")))
  (resource
   (@ (xmlns "http://scicrunch.org/resources/schema/rrid-core-0"))
-  (identifier
-   (@ (identifierType "URL"))
-   "http://scicrunch.org/resolver/SCR_003070")
+  (identifier (@ (identifierType "RRID")) "RRID:SCR_003070")
   (properCitation
    (@ (render-as "Proper Citation") (type "Inline Text Citation"))
    "(ImageJ, RRID:SCR_003070)")
@@ -34,7 +32,6 @@
    (@ (resourceTypeGeneral "Software"))
    "Image Processing Software")
   (alternateIdentifiers
-   (alternateIdentifier (@ (alternateIdentifierType "RRID")) "RRID:SCR_003070")
    (alternateIdentifier
     (@ (alternateIdentifierType "RRID"))
     "RRID:nif-0000-30467")
@@ -42,6 +39,12 @@
     (@ (alternateIdentifierType "RRID"))
     "RRID:rid_000070"))
   (relatedIdentifiers
+   (relatedIdentifier
+    (@
+     (relatedIdentifierType "URL")
+     (relationType "IsIdenticalTo")
+     (resourceTypeGeneral "Software"))
+    "http://scicrunch.org/resolver/RRID:SCR_003070")
    (relatedIdentifier
     (@
      (relatedIdentifierType "URL")

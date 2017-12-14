@@ -4,9 +4,7 @@
    (rridType "http://scicrunch.org/resources/schema/rrid-type-0")))
  (resource
   (@ (xmlns "http://scicrunch.org/resources/schema/rrid-core-0"))
-  (identifier
-   (@ (identifierType "URL"))
-   "http://scicrunch.org/resolver/AB_355445")
+  (identifier (@ (identifierType "RRID")) "RRID:AB_355445")
   (properCitation
    (@ (render-as "Proper Citation") (type "Inline Text Citation"))
    "(R and D Systems Cat# AF566, RRID:AB_355445)")
@@ -24,7 +22,6 @@
    (date (@ (dateType "Updated")) "2015-09-09T17:27:31+00:00"))
   (resourceType (@ (resourceTypeGeneral "Material")) "Antibody")
   (alternateIdentifiers
-   (alternateIdentifier (@ (alternateIdentifierType "RRID")) "RRID:AB_355445")
    (alternateIdentifier
     (@ (alternateIdentifierType "RRID"))
     "RRID:AB_10083848")
@@ -32,6 +29,12 @@
     (@ (alternateIdentifierType "R and D Systems catalog number"))
     "AF566"))
   (relatedIdentifiers
+   (relatedIdentifier
+    (@
+     (relatedIdentifierType "URL")
+     (relationType "IsIdenticalTo")
+     (resourceTypeGeneral "Material"))
+    "http://scicrunch.org/resolver/RRID:AB_355445")
    (relatedIdentifier
     (@
      (relatedIdentifierType "URL")

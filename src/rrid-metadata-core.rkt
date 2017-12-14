@@ -48,7 +48,7 @@
     ,(filter-empty
       `(resource
         (@ (xmlns ,schema-url))
-        (identifier (@ (identifierType "URL")) ,(string-append "http://scicrunch.org/resolver/" (symbol->string primary-id)))
+        (identifier (@ (identifierType "RRID")) ,(string-append "RRID:" (symbol->string primary-id)))
         (properCitation (@ (render-as "Proper Citation")  ; XXX RRID addition
                            (type "Inline Text Citation"))
                         ,proper-citation)
@@ -162,7 +162,7 @@
                             (cons primary-id alternate-ids)))
 
     (define altids
-      (let* ([res (for/list ([id to-resolve]) (list "RRID" id))]
+      (let* ([res (for/list ([id (cdr to-resolve)]) (list "RRID" id))]
              [from-tr (dict-ref type-record 'altids '())]
              [all (append res from-tr)])
         ;[mapl (λ (lst)
@@ -170,13 +170,17 @@
         ;(let ([type (car l)][id (cadr l)])
         ;(altids-format type id)))
         ;lst))] )
-        (cons 'alternateIdentifiers (map (λ (l) (apply altids-format l)) all))))
+        (if (empty? all)
+            all
+            (cons 'alternateIdentifiers (map (λ (l) (apply altids-format l)) all)))))
 
     (define resourceTypeGeneral (type-dict-or-record 'resourceTypeGeneral))
 
     (define relids
       (let ([rids (dict-ref type-record 'relids #f)]
             [base `(
+                    (,(string-append "http://scicrunch.org/resolver/" qname)
+                     "URL" "IsIdenticalTo" ,resourceTypeGeneral)
                     (,(string-append "http://n2t.net/" qname)
                      "URL" "IsIdenticalTo" ,resourceTypeGeneral)
                     (,(string-append "http://identifiers.org/" qname)
@@ -266,7 +270,7 @@
                                    (if out `(description (@ (xml:lang "en-US")) ,out) '()))
                    #:subjects subjects
                    #:publisher issuing-source)])
-      (add-rec record to-resolve)
+      (add-rec record to-resolve #:resolve->source (gtr identifier-type 'resolve->source #f))
       record))
   make-record)
 

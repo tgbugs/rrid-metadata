@@ -1,5 +1,5 @@
 <resource xmlns="http://scicrunch.org/resources/schema/rrid-core-0">
-  <identifier identifierType="URL">http://scicrunch.org/resolver/SCR_003070</identifier>
+  <identifier identifierType="RRID">RRID:SCR_003070</identifier>
   <properCitation render-as="Proper Citation" type="Inline Text Citation">(ImageJ, RRID:SCR_003070)</properCitation>
   <titles>
     <title xml:lang="en-US" titleType="AlternativeTitle">Image J</title>
@@ -22,11 +22,11 @@
   </dates>
   <resourceType resourceTypeGeneral="Software">Image Processing Software</resourceType>
   <alternateIdentifiers>
-    <alternateIdentifier alternateIdentifierType="RRID">RRID:SCR_003070</alternateIdentifier>
     <alternateIdentifier alternateIdentifierType="RRID">RRID:nif-0000-30467</alternateIdentifier>
     <alternateIdentifier alternateIdentifierType="RRID">RRID:rid_000070</alternateIdentifier>
   </alternateIdentifiers>
   <relatedIdentifiers>
+    <relatedIdentifier relatedIdentifierType="URL" relationType="IsIdenticalTo" resourceTypeGeneral="Software">http://scicrunch.org/resolver/RRID:SCR_003070</relatedIdentifier>
     <relatedIdentifier relatedIdentifierType="URL" relationType="IsIdenticalTo" resourceTypeGeneral="Software">http://n2t.net/RRID:SCR_003070</relatedIdentifier>
     <relatedIdentifier relatedIdentifierType="URL" relationType="IsIdenticalTo" resourceTypeGeneral="Software">http://identifiers.org/RRID:SCR_003070</relatedIdentifier>
     <relatedIdentifier relatedIdentifierType="URL" relationType="IsDerivedFrom" resourceTypeGeneral="Software">http://uri.scicrunch.org/registry/SCR_003070</relatedIdentifier>
