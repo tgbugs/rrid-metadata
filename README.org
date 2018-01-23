@@ -3,7 +3,7 @@
   It is basically the [[https://schema.datacite.org/][DataCite metadata schema]] with a few additions and slightly
   expanded semantics.
   
-  The implementation is in [[https://racket-lang.org][Racket]] and uses SXML as as the tree representation.
+  The implementation is in [[https://racket-lang.org][Racket]] and uses SXML as the tree representation.
   SXML can be exported directly to XML. I have not written a conversion to json
   yet, but it should be fairly straight forward.
   
