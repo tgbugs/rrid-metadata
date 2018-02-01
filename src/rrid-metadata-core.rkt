@@ -232,7 +232,7 @@
       (if (dict-has-key? type-record 'subjects)
           (subjects-format (dict-ref type-record 'subjects))
           '()))
-    (pretty-write subjects)
+    ;(pretty-write subjects)
 
     (define contributors
       (let ([contrib-list (let ([v (dict-ref type-record 'contributors #f)])
@@ -277,6 +277,6 @@
                    #:subjects subjects
                    #:publisher issuing-source)])
       (add-rec record to-resolve)
-      record))  ; return void here?
+      (void)));record))  ; return void here?
   make-record)
 
