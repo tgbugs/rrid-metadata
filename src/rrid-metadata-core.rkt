@@ -3,7 +3,7 @@
 (require sxml ; atm only for the jats bit
  (for-syntax syntax/parse))
 
-(provide make-make-record schema-url)
+(provide make-make-record schema-url schema-structure)
 
 ;; macros
 (define-syntax (bind stx)  ; FIXME could be called (node stx) or something? make-sxml-node
@@ -24,6 +24,89 @@
 
 ; current schema url version
 (define schema-url "http://scicrunch.org/resources/schema/rrid-core-0")
+
+;(define record-structure
+; may have more than one optional...
+; wildcard element -> * ?
+; _ binds to the child-type of the parent
+; eq? in child predicate will do an exact test against the listed next
+; cars that are lists is where to start... square brackets help clarify elements
+; will probably make parsing easier too
+; i think we can make type? optional when it is list? and null?
+; ie [symbol? range? type?] => type? -> list?
+; and [_ range? type?] => type? -> null? since [_ 1] clearly indicates null? in all cases
+; do we need null? at the end of [("member" "check" "list") 1]???
+; should be able to lift this into a constraint checker...
+(define schema-structure
+  "structure validation syntax
+    element : ssexp symbol
+    symbol : SYMBOL
+    ssexp : '( symbol-restrict ssexp ') | racket-sexp
+    symbol-restrict : '[ u-sym-m int-or-range child-is-pred* (#:warn-missing expected-sub-tree-patterns)* ']
+    u-sym-m : _ | symbol | pattern-expression
+    int-or-range : INTEGER | range-expression
+    range-expression : '( 'range 0-1 int>prev-or-n ')
+    0-1 : 0 | 1
+    int>prev-or-n : INTEGER | n  ; must test INTEGER > 0-1
+    child-is-pred : racket-predicate  ; must test explicitly whether absense is valid in context
+  "
+'([*TOP* 1]
+  ([@ (range 0 1)]
+   ([*NAMESPACES* (range 0 1)]
+    ([(pattern *) (range 0 n) uri?] [_ 1])))
+  ([resource 1]
+   ([@ (range 0 1)]
+    ([xmlns 1 uri?] [_ 1])  ; FIXME eq? schem-url?
+    ([(pattern xmlns:*) (range 0 n) uri?] [_ 1]))
+   ([identifier 1 rrid?]
+    ([@ 1 equal?] (identifierType "RRID"))
+    [_ 1])
+   ([properCitation 1 string?]  ; TODO pc validator
+    ([@ 1 equal?] (render-as "Proper Citation") (type "Inline Text Citation"))
+    [_ 1])
+   ([titles 1]
+    ([title (range 1 n) string?]
+     ([@ (range 0 1)] ([xml:lang (range 0 1) xml-lang?] [_ 1]))
+     [_ 1]))
+   ([publisher 1 string?] [_ 1])
+   ([description (range 0 1) string?]
+    ([@ (range 0 1)] ([xml:lang (range 0 1) xml-lang?] [_ 1]))
+    [_ 1])
+   ([subjects (range 0 1)]
+    ([subject (range 0 n) string?]
+     ([@ (range 0 1)] ([xml:lang (range 0 1) xml-lang?] [_ 1]))
+     [_ 1]))
+   ([contributors (range 0 1)]  ; list? vs implicit 'only what we list below is allowed'
+    ([contributor (range 0 n)]
+     ([@ 1]
+      ([contributorType 1 string?] [_ 1]))  ; member?
+     ([contributorName 1 string?] [_ 1])))
+   ([dates 1]
+    ([date (range 1 n) iso8601-tz-string? #:warn-missing ((@ (dateType "Updated"))
+                                                       (@ (dateType "Submitted")))]
+     ([@ 1] ([dateType 1 member] [("Submitted"
+                                   "Updated") 1 null?]))  ; TODO
+     [_ 1]))
+   ([resourceType 1 string?]
+    ([@ 1]
+     ([resourceTypeGeneral 1 member] [("Material"
+                                       "Software"
+                                       "Services") 1 null?]))  ; TODO
+    [_ 1])
+   ([alternateIdentifiers 1]
+    ([alternateIdentifier (range 1 n) (match-@-value alternateIdentifierType)]
+     ([@ 1] ([alternateIdentifierType 1 string?] [_ 1]))
+     [_ 1]))
+   ([relatedIdentifiers 1 #:warn-missing ((@ (relationType "IsCompiledBy"))
+                                          (@ (relationType "IsIdenticalTo"))
+                                          (@ (relationType "IsDerivedFrom")))]
+    ([relatedIdentifier (range 1 n) (match-@-value relatedIdentifierType)]
+     ([@ 1]
+      ([relatedIdentifierType 1 member] [("URL" "DOI") 1 null?])
+      ([relationType 1 member] [,relation-types 1 null?])  ; TODO
+      ([resourceTypeGeneral 1 member] [,resource-type-generals 1 null?]))  ; TODO
+     [_ 1]))))
+)
 
 (define (record-format
          #:id primary-id
