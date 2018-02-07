@@ -53,7 +53,8 @@
     (let ([current-index (counter)])
       ;(when resolve->source (set! resolve-to-IsDerivedFrom (cons current-index resolve-to-IsDerivedFrom)))
       (for ([id to-resolve]) (set! rrid->record-index (cons (cons id current-index) rrid->record-index)))
-      (set! metadata-records (cons `(,current-index . ,record) metadata-records))))
+      (set! metadata-records (cons `(,current-index . ,record) metadata-records))
+      (void)))
 
   (define (dump-recs) (list metadata-records resolve->source-sources rrid->record-index))
 
