@@ -403,7 +403,7 @@ structure validation syntax
   (void))
 
 (module+ test
-  (require "rrid-metadata-database.rkt")
+  (require "database.rkt")
   (require "sources.rkt")
   (make-gtr! identifier-sources)
   ;(set-add-rec! add-rec)  ; FIXME this is a really really terrible way to handle this :/

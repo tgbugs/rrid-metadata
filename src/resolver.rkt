@@ -5,7 +5,7 @@
          web-server/servlet-env
          ;web-server/http/request-structs
          web-server/http/redirect)
-(require "rrid-metadata-example.rkt")
+(require "example.rkt")
 
 (define mime-types #hash(("xml" . #"application/xml")
                          ("sxml" . #"text/plain")  ; browsers have no idea what to do with this stuff
