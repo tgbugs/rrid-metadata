@@ -72,69 +72,72 @@
 
 ; dump the records from the database and write reprs to file
 
-(dict-for-each (car (dump-recs))
-               (λ (i rec) 
-                 (when (> i -1)
-                   (begin (save-sexp rec (format "../examples/test-rec-~a.sxml" i))
-                          (save-sxml rec (format "../examples/test-rec-~a.xml" i))
-                          (load-sxml (format "../examples/test-rec-~a.xml" i) `((#f . ,schema-url)))  ; roundtrip test
-                          void))))
+(module+ test
+  (dict-for-each (car (dump-recs))
+                 (λ (i rec) 
+                   (when (> i -1)
+                     (begin (save-sexp rec (format "../examples/test-rec-~a.sxml" i))
+                            (save-sxml rec (format "../examples/test-rec-~a.xml" i))
+                            (load-sxml (format "../examples/test-rec-~a.xml" i) `((#f . ,schema-url)))  ; roundtrip test
+                            void))))
 
-;; not in core
+  ;; not in core
 
-(define (other)
+  (define (other)
 
-  ; mapping from rrids ->
-  '(RRDI:PREFIX_355445 . test-resource)
-  '(RRDI:some-other-identifier . test-resource)
+    ; mapping from rrids ->
+    '(RRDI:PREFIX_355445 . test-resource)
+    '(RRDI:some-other-identifier . test-resource)
 
-  '(rrid:full-record
-    (rrid:identifier "RRID:PREFIX_1234567")
-    (relatedIdentifiers ; papers would go here if we wanted to give them away
-     ; works 
-     (relatedIdentifier (@ definingCitation ) "PMID:1234567"))
-    (field-1 )
-    (field-2 )
-    (field-3 )
-    (field-4 ))
+    '(rrid:full-record
+      (rrid:identifier "RRID:PREFIX_1234567")
+      (relatedIdentifiers ; papers would go here if we wanted to give them away
+       ; works 
+       (relatedIdentifier (@ definingCitation ) "PMID:1234567"))
+      (field-1 )
+      (field-2 )
+      (field-3 )
+      (field-4 ))
 
-  '(research-resource-id (@ (resource-id-type "rrid")
-                            (vocab="Research Resource Identifier"))
-                         "RRID:AB_1234567ABCDEFG")
-  (write-xexpr  ; xexpr->xml
-   '(resource "http://scicrunch.org/resources/schema/metadata.something"
-              (rrid:core
-               (dc:identifier "RRID:PREFIX_1234567")
-               (rrid:type-schema
-                )
-               (rrid-types:some-resource
-                (resource:field-1 "value 1")
-                (resource:field-2 "value 2")
-                (resource:field-3 "value 3")
-                (resource:field-4 "value 4")
-                ))))
+    '(research-resource-id (@ (resource-id-type "rrid")
+                              (vocab="Research Resource Identifier"))
+                           "RRID:AB_1234567ABCDEFG")
+    (write-xexpr  ; xexpr->xml
+     '(resource "http://scicrunch.org/resources/schema/metadata.something"
+                (rrid:core
+                 (dc:identifier "RRID:PREFIX_1234567")
+                 (rrid:type-schema
+                  )
+                 (rrid-types:some-resource
+                  (resource:field-1 "value 1")
+                  (resource:field-2 "value 2")
+                  (resource:field-3 "value 3")
+                  (resource:field-4 "value 4")
+                  ))))
 
 
 
-  (define (format-generator)
-    ; for some other time...
-    ; what we really want for this is just a way to map our existing fields to the
-    ; defined fields of the record and generate them... which seems an awful lot like
-    ; what I'm working on in the other section
-    (define (node [name '|@|]
-                  [occurance '1] ; '0-1 '1-n '0-n
-                  #:obligation [oblication 'optional]  ; 'manditory 'reccomended
-                  . subnodes)
-      'huehue
+    (define (format-generator)
+      ; for some other time...
+      ; what we really want for this is just a way to map our existing fields to the
+      ; defined fields of the record and generate them... which seems an awful lot like
+      ; what I'm working on in the other section
+      (define (node [name '|@|]
+                    [occurance '1] ; '0-1 '1-n '0-n
+                    #:obligation [oblication 'optional]  ; 'manditory 'reccomended
+                    . subnodes)
+        'huehue
+        )
+      'doublehue
       )
-    'doublehue
-    )
 
-  (define (append-if lst l)
-    (if (or (and (list? l)
-                 (empty? l))
-            (not l))
-        lst
-        (append lst l)))
+    (define (append-if lst l)
+      (if (or (and (list? l)
+                   (empty? l))
+              (not l))
+          lst
+          (append lst l)))
 
-  void)
+    void)
+
+)

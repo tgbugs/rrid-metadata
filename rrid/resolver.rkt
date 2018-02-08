@@ -21,6 +21,8 @@
             (extension (dict-ref mime-types extension #"text/html"))
             (#t #"text/html"))))
 
+(define server-base-path "/")
+
 (define (resolver req)
   ;(displayln req)
   ; note to self proto- means something akin to 'embryonic' or 'not yet fully formed' 'will be modified'
@@ -44,18 +46,21 @@
                      ((eq? behavior 'local) 303)  ; standard cooluri behavior
                      (#t 404))]
          [message (if (< code 400) #"OK" #"Not Found etc.")]
-         [mime-type (get-mime-type behavior code ext)])
+         [mime-type (get-mime-type behavior code ext)]
+         [time-now (current-seconds)]
+         )
     ;(displayln `(proto-path ,proto-path))
     ;(displayln `(resp ,resp))
     ;(displayln `(behavior ,behavior))
     ;(displayln `(code ,code))
     ;(when (equal? path "RRID:sleep") (sleep 10))  ; continuations are cool
-    (cond ((null? resp) (response/full code message (current-seconds) mime-type '() (list (string->bytes/utf-8 "Nothing to see here."))))
+    (displayln (format "~a ~a~a ~a" time-now server-base-path proto-path code))
+    (cond ((null? resp) (response/full code message time-now mime-type '() (list (string->bytes/utf-8 "Nothing to see here."))))
           ((and (eq? behavior 'redirect) (= code 302)) (redirect-to resp temporarily))
           ;((and (eq? behavior 'redirect) (= code 303)) (redirect-to resp see-other))
-          ;((null? proto-path) (response/full code message (current-seconds) mime-type '() (list (string->bytes/utf-8 resp))))
-          (#t (response/full code message (current-seconds) mime-type '() (list (string->bytes/utf-8 resp)))))))
-        ;(response code (string->bytes/utf-8 resp) (current-seconds) mime-type '() void))))  ; instead of void could stream
+          ;((null? proto-path) (response/full code message time-now mime-type '() (list (string->bytes/utf-8 resp))))
+          (#t (response/full code message time-now mime-type '() (list (string->bytes/utf-8 resp)))))))
+        ;(response code (string->bytes/utf-8 resp) time-now mime-type '() void))))  ; instead of void could stream
 
 (define (responder url exn)
   (response/full 500 #"Internal Server Error"
@@ -67,11 +72,10 @@
                  (current-seconds) #"text/html"
                  '() '(#"File not found.")))
 
-(define path "/")
 (define (run)
   (serve/servlet resolver
                  #:port 4483
-                 #:servlet-path path
+                 #:servlet-path server-base-path
                  #:server-root-path "/dev/null"  ; FIXME not portable...
                  ;#:servlet-regexp (regexp (format "^~a(RRID:.+)*$" (regexp-quote path)))
                  #:servlet-regexp #rx""

@@ -40,8 +40,38 @@
 ; TODO is it possible to generate our ingest/conversion code from this? not entirely clear...
 ;  maybe could generate using an alternate parser from additional annotations to more subtrees?
 ; the right way to imlement this feels like using a macro to convert [] into consumer functions...
+; might be possible to use a reader macro ala #str([*TOP* 1] ...) as a way to define these...
 
-(define schema-structure
+; see https://lexi-lambda.github.io/blog/2017/08/12/user-programmable-infix-operators-in-racket/
+
+(require (for-syntax syntax/parse/class/paren-shape)
+         (prefix-in racket/base/ racket/base)
+         syntax/parse/define)
+
+(define-syntax (wrapped stx)
+  ; this is not working yet... (current does nothing)
+  (syntax-parse stx
+    [(_nil quote-stx) #'(quote-stx)]))
+
+(define-syntax-parser define-schema-structure
+  [[~brackets _ arg ...]
+   #'(#%node-spec arg ...)]
+  ;[(~parens _ arg ...)
+   ;#'(list arg ...)]
+  )
+
+;(define-schema-structure [*TOP* 1])
+;(define-schema-structure '([*TOP* 1] "yes"))
+
+(define (#%node-spec node-name range-expression [expect-type list?] #:warn-missing expect-patterns)
+  (define (checker sexp-tree)
+    #t)  ; TODO
+  checker)
+
+;(define-syntax-parser #%node-spec
+  ;[(_ a b c)])
+
+(define schema-structure ;(define-schema-structure  ; TODO hrm...
 #|
 structure validation syntax
     element : ssexp symbol
@@ -411,11 +441,12 @@ structure validation syntax
   (make-gtr! identifier-sources)
   ;(set-add-rec! add-rec)  ; FIXME this is a really really terrible way to handle this :/
   ; but I don't want to have to rewrite the stupid function signature :/
-  (check-schema (make-record 'fake
-                             'PREFIX_1234567
-                             #:record
-                             (fake-rec
-                              #:title "Fake resource"
-                              #:insert_time 1111111111
-                              #:curate_time 1222222222
-                              #:something "We need this for the proper citation"))))
+  (define rec (make-record 'fake
+                           'PREFIX_1234567
+                           #:record
+                           (fake-rec
+                            #:title "Fake resource"
+                            #:insert_time 1111111111
+                            #:curate_time 1222222222
+                            #:something "We need this for the proper citation")))
+  '(check-schema rec))

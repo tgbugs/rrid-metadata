@@ -5,7 +5,9 @@
 (define deps '("base"
                "compatibility-lib"
                "sxml"
-               "web-server-lib"))
+               "syntax-classes-lib"
+               "web-server-lib"
+               ))
 
 (define pkg-desc "Reference RRID metadata validator and resolver")
 
