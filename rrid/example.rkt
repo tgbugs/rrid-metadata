@@ -2,10 +2,7 @@
 
 (require racket/trace)
 (require xml sxml)
-(require "xml-xexpr.rkt"
-         "core.rkt"
-         "sources.rkt"
-         "database.rkt")
+(require "main.rkt")
 
 (provide rrid->response rrid->record)  ; FIXME this is a bit and brittle, need to decouple make-record from submit-record...
 

@@ -253,6 +253,9 @@ structure validation syntax
 (define add-rec (λ (a b) a))
 (define (set-add-rec! function)
   (set! add-rec function))
+
+;; main record creation code
+
 (define (make-record identifier-type primary-id #:record type-record . alternate-ids)
 
   ; when treated as a qname `@prefix RRID: <http://scicrunch.org/resolver/> .`
