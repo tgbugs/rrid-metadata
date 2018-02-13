@@ -85,11 +85,6 @@
               `(local ,(format-record record format)))
           record)))  ; TODO failover to SciCrunch resolver for variants
 
-  (list init-db add-rec dump-recs rrid->record rrid->response))
+  (values init-db add-rec dump-recs rrid->record rrid->response))
 
-(define database-ops (setup-db))
-(define init-db (first database-ops))
-(define add-rec (second database-ops))
-(define dump-recs (third database-ops))
-(define rrid->record (fourth database-ops))
-(define rrid->response (fifth database-ops))
+(define-values (init-db add-rec dump-recs rrid->record rrid->response) (setup-db))
