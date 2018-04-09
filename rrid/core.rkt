@@ -11,6 +11,88 @@
     [(_bind variable-stx)
      #'(quasiquote (variable-stx ,variable-stx))]))
 
+(module syntax-classes racket/base
+  (require syntax/parse (for-syntax racket/base syntax/parse))
+  (provide (all-defined-out))
+
+  (module derp racket/base
+    (require syntax/parse)
+    (provide (all-defined-out))
+    
+    (module dderp racket/base
+      (require syntax/parse)
+      (provide (all-defined-out))
+      (define-syntax-class sc-exact-pat
+        ; TODO validating the validation schema means that we should warn if
+        ; and exact-cdr-member doesn't match anything
+        ; FIXME vs warn-missing on literal leaves? or is that not relevant
+        (pattern (name body:expr ...))))
+    (require 'dderp (for-syntax 'dderp))
+    (provide (all-from-out 'dderp))
+
+    (define-syntax-class blank-any
+      #:literals (_)
+      (pattern _))
+
+    (define-syntax-class any-number
+      #:literals (n)
+      (pattern n))
+
+    (define-syntax-class sc-name-pat
+      #:literals (pattern)
+      (pattern (pattern name-pattern:id))) 
+
+    (define-syntax-class sc-count
+      #:literals (range)
+      (pattern (range start:exact-nonnegative-integer stop:exact-positive-integer))
+      (pattern (range start:exact-nonnegative-integer stop:any-number))) 
+
+    (define-syntax-class sc-restr
+      (pattern ([(~optional (~seq #:warn on-count:exact-nonnegative-integer))
+                 subtree:sc-exact-pat count-spec:sc-count] ...)))
+    
+    (define-syntax-class sc-head
+      (pattern [(~or* name:id name-pat:sc-name-pat)
+                count-spec:sc-count
+                (~optional (~seq #:restrictions restriction:sc-restr))]))
+
+    (define-syntax-class sc-pred
+      (pattern ([name:id (~or* function:expr function:id)] ...)))
+
+    (define-syntax-class sc-string-pred
+      (pattern ([string-value:string predicate:id] ...))))
+
+  (require 'derp (for-syntax 'derp))
+  (provide (all-from-out 'derp))
+  
+  (define-syntax-class sc-terminal
+    #:literals (->?)  ; predicate from sibbling path value
+
+    (pattern (~or* exact-value:string exact-value:integer))
+    (pattern predicate:id)
+    (pattern (->? subtree:sc-exact-pat))  ; make the predicate at compile time?
+    )
+
+  (define-syntax-class sc-body
+    (pattern (head:sc-head body:sc-body ... terminal:sc-terminal)))
+
+
+  (define-syntax-class sc-schema
+    (pattern (head:sc-head body:sc-body ... (~optional terminal:sc-terminal))))
+)
+
+(require 'syntax-classes (for-syntax 'syntax-classes))
+
+(define-syntax (sxml-schema stx)  ; more spec-tree-structure
+  (syntax-parse stx
+    [(_ (~optional (~seq #:predicates predicate-let:sc-pred))
+        (~optional (~seq #:string->predicate string-let:sc-string-pred))
+        schema:sc-schema)
+    ;[(_ ([node-name this-node-count-spec (~optional predicate)] body:spec-node ...))
+     #''(WE MADE IT BOYS!)]))
+
+
+
 ;; utility
 
 (define (filter-empty lst)
@@ -85,63 +167,93 @@ structure validation syntax
     int>prev-or-n : INTEGER | n  ; must test INTEGER > 0-1
     child-is-pred : racket-predicate  ; must test explicitly whether absense is valid in context
 |#
-'([*TOP* 1]
+  (sxml-schema
+  #:predicates ([resource-type-general? (λ (value) (member value resource-type-gemerals))]
+                [relation-type? (λ (value) (member value relation-types))]
+                [xml-lang? (λ (value) (member value xml-langs))])
+  #:string->predicate (["DOI" doi?] ["RRID" rrid?] ["URL" url?])
+([*TOP* 1]
   ([@ (range 0 1)]
    ([*NAMESPACES* (range 0 1)]
-    ([(pattern *) (range 0 n) uri?] [_ 1])))
+    ([(pattern *) (range 0 n)] uri?)))
   ([resource 1]
    ([@ (range 0 1)]
-    ([xmlns 1 uri?] [_ 1])  ; FIXME eq? schem-url?
-    ([(pattern xmlns:*) (range 0 n) uri?] [_ 1]))
-   ([identifier 1 rrid?]
-    ([@ 1 equal?] (identifierType "RRID"))
-    [_ 1])
-   ([properCitation 1 string?]  ; TODO pc validator
-    ([@ 1 equal?] (render-as "Proper Citation") (type "Inline Text Citation"))
-    [_ 1])
+    ([xmlns 1] rrid?)  ; FIXME eq? schem-url?
+    ([(pattern xmlns:*) (range 0 n)] uri?))
+   ([identifier 1]
+    ;([@ 1 equal?] (identifierType "RRID"))
+    ;(@ (identifierType "RRID"))
+    ;([@ 1 equal?] ([identifierType 1 equal?] "RRID"))  ; ie (equal? (cdr (validate thing)))
+    ([@ 1]  ; this is the most consistent way to do it
+     ([identifierType 1 equal?] "RRID"))
+    rrid?)
+   ([properCitation 1]  ; TODO pc validator
+    ;([@ 1 equal?] (render-as "Proper Citation") (type "Inline Text Citation"))
+    ;(@ (render-as "Proper Citation") (type "Inline Text Citation"))  ; an exact required non-terminal?
+    ; going the other way, more verbose but is more regular and the intent is cleaer
+    ;([@ 1 equal?] ([render-as 1 equal?] "Proper Citation") ([type 1 equal?] "Inline Text Citation"))
+    ([@ 1] ([render-as 1 equal?] "Proper Citation")  ; this is the most consistent way to do it
+           ([type 1 equal?] "Inline Text Citation"))
+    string?)
    ([titles 1]
-    ([title (range 1 n) string?]
-     ([@ (range 0 1)] ([xml:lang (range 0 1) xml-lang?] [_ 1]))
-     [_ 1]))
-   ([publisher 1 string?] [_ 1])
-   ([description (range 0 1) string?]
-    ([@ (range 0 1)] ([xml:lang (range 0 1) xml-lang?] [_ 1]))
-    [_ 1])
+    ([title (range 1 n)]
+     ;([@ (range 0 1)] ([xml:lang (range 0 1) xml-lang?] [_ 1]))
+     ([@ (range 0 1)] ([xml:lang (range 0 1)]  xml-lang?))  ; all terminals have only 1 instance in sxml
+     string?))
+   ;([publisher 1 string?] _ )
+   ([publisher 1] string?)
+   ([description (range 0 1)]
+    ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
+    string?)
    ([subjects (range 0 1)]
-    ([subject (range 0 n) string?]
-     ([@ (range 0 1)] ([xml:lang (range 0 1) xml-lang?] [_ 1]))
-     [_ 1]))
+    ([subject (range 0 n)] ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
+     string?))
    ([contributors (range 0 1)]  ; list? vs implicit 'only what we list below is allowed'
     ([contributor (range 0 n)]
-     ([@ 1]
-      ([contributorType 1 string?] [_ 1]))  ; member?
-     ([contributorName 1 string?] [_ 1])))
-   ([dates 1]
-    ([date (range 1 n) iso8601-tz-string? #:warn-missing ((@ (dateType "Updated"))
-                                                       (@ (dateType "Submitted")))]
-     ([@ 1] ([dateType 1 member] [("Submitted"
-                                   "Updated") 1 null?]))  ; TODO
-     [_ 1]))
-   ([resourceType 1 string?]
+     ([@ 1] ([contributorType 1] string?))  ; member?
+     ([contributorName 1] string?)))
+   ([dates 1 #:restrictions ([(date (@ (dateType _ ))) 1])]  ; subtree restrictions
+   ;([dates 1]
+    ([date (range 1 n)
+           #:restrictions ([(@ (dateType "Updated")) (range 0 1) #:warn 0]
+                           [(@ (dateType "Submitted")) (range 0 1) #:warn 0])]
+           ;#:warn-missing ((@ (dateType "Updated"))
+                                                          ; (member? warn-on (cdr sublist)) works
+                                                          ;(@ (dateType "Submitted")))]
+     ;([@ 1] ([dateType 1 member] [("Submitted"
+                                   ;"Updated") 1 null?]))  ; TODO
+     ; FIXME need to disallow multiple of the same?
+     ;([@ 1] ([dateType 1 member] ("Submitted" "Updated")))
+     ;([@ 1] ([dateType 1] ,(λ (node) (member node ("Submitted" "Updated")))))
+     ;([@ 1] ([dateType 1] (member? "Submitted" "Updated")))
+     ([@ 1] ([dateType 1] (~or "Submitted" "Updated")))
+     iso8601-tz-string?))
+   ([resourceType 1]
     ([@ 1]
-     ([resourceTypeGeneral 1 member] [("Material"
-                                       "Software"
-                                       "Services") 1 null?]))  ; TODO
-    [_ 1])
+     ;([resourceTypeGeneral 1] (member? ,resource-type-generals))  ; TODO
+     ([resourceTypeGeneral 1] resource-type-general?))  ; TODO
+     ;([resourceTypeGeneral 1 member] [("Material"
+                                       ;"Software"
+                                       ;"Services") 1 null?]))  ; TODO
+    string?)
    ([alternateIdentifiers 1]
-    ([alternateIdentifier (range 1 n) (match-@-value alternateIdentifierType)]
-     ([@ 1] ([alternateIdentifierType 1 string?] [_ 1]))
-     [_ 1]))
-   ([relatedIdentifiers 1 #:warn-missing ((@ (relationType "IsCompiledBy"))
-                                          (@ (relationType "IsIdenticalTo"))
-                                          (@ (relationType "IsDerivedFrom")))]
-    ([relatedIdentifier (range 1 n) (match-@-value relatedIdentifierType)]
+    ([alternateIdentifier (range 1 n)]
+     ([@ 1] ([alternateIdentifierType 1] string?))
+     (->? (@ (alternateIdentifierType _)))))
+     ;(value->predicate (@ (alternateIdentifierType _)))))
+   ([relatedIdentifiers
+     1
+     #:restrictions ([(@ (relationType "IsCompiledBy")) (range 0 n) #:warn 0]
+                     [(@ (relationType "IsIdenticalTo")) (range 0 n) #:warn 0]
+                     [(@ (relationType "IsDerivedFrom")) (range 0 n) #:warn 0])]
+    ([relatedIdentifier (range 1 n)]
      ([@ 1]
-      ([relatedIdentifierType 1 member] [("URL" "DOI") 1 null?])
-      ([relationType 1 member] [,relation-types 1 null?])  ; TODO
-      ([resourceTypeGeneral 1 member] [,resource-type-generals 1 null?]))  ; TODO
-     [_ 1]))))
-)
+      ([relatedIdentifierType 1] (member? "URL" "DOI"))
+      ;([relationType 1] (member? ,relation-types))  ; TODO
+      ([relationType 1] relation-type?)  ; TODO
+      ([resourceTypeGeneral 1] resource-type-general?))  ; TODO
+     (value->predicate (@ (relatedIdentifierType _)))))))
+))
 
 (define (check-schema sxml)
   (define (check-subtree sub-sxml sub-structure [current null])
