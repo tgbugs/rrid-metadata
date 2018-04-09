@@ -3,13 +3,31 @@
 (module syntax-classes racket/base
   (module derp racket/base
     (module double-derp racket/base
-      (require syntax/parse)
-      (provide (all-defined-out))
+      (module blank racket/base
+        (provide (all-defined-out))
+        (define _ #'i-can-be-whatever-you-need-me-to-be-baby))
+      (require syntax/parse
+               (for-template 'blank))
+      (provide (all-defined-out)
+               (for-template (all-from-out 'blank)))
+      (define-syntax-class blank-any
+        #:literals (_)
+        (pattern _))
       (define-syntax-class sc-exact-pat
         ; TODO validating the validation schema means that we should warn if
         ; and exact-cdr-member doesn't match anything
         ; FIXME vs warn-missing on literal leaves? or is that not relevant
-        (pattern (name body:expr ...))))
+        ; there is only one subtree, and it must be direct
+        (pattern (name:id (~or* body:sc-exact-pat -match:blank-any))
+                 ;#:attr cars #'(name body.name) ; body.body.name ; HRM
+                 #:attr to-match (if (attribute -match)
+                                     #'(name to-match)
+                                     #'(name body))
+                 ;#:attr match #'(λ (value) (match value [this-syntax (attribute to-match)]))
+                 #:attr match #'(λ (value) (match value [this-syntax to-match]))
+                 )
+
+        ))
     (module symbols racket/base
       (provide (all-defined-out))
       ; big enough for any rrid metadata until the AI's want all their
@@ -31,10 +49,6 @@
              (all-from-out 'double-derp)
              (for-template (all-from-out 'symbols)))
 
-    (define-syntax-class blank-any
-      #:literals (_)
-      (pattern _))
-
     (define-syntax-class any-number
       #:literals (n)
       (pattern n))
@@ -45,9 +59,13 @@
 
     (define-syntax-class sc-count
       #:literals (range)
-      (pattern number:exact-positive-integer)
+      (pattern number:exact-positive-integer
+               ; this is basically 1 or n but we use (range 1 n)
+               #:attr start #'number
+               #:attr stop #'number)
       (pattern (range start:exact-nonnegative-integer stop:exact-positive-integer))
-      (pattern (range start:exact-nonnegative-integer stop:any-number))) 
+      (pattern (range start:exact-nonnegative-integer -stop:any-number)
+               #:attr stop #'#f)) 
 
     (define-syntax-class sc-restr
       (pattern ([subtree:sc-exact-pat 
@@ -57,7 +75,15 @@
     (define-syntax-class sc-head
       (pattern [(~or* name:id name-pat:sc-name-pat)
                 count-spec:sc-count
-                (~optional (~seq #:restrictions restriction:sc-restr))]))
+                (~optional (~seq #:restrictions restriction:sc-restr))]
+               #:attr start #'count-spec.start
+               #:attr stop #'count-spec.stop
+               ; we can't actually do this inside of there becuase ~optional needs to wrap it
+               ;#:attr racket (cond [(attribute count-spec.number) ; TODO name-pat
+                                    ;#'name]
+                                   ;[#t (cond [(eq? (attribute count-spec.start) 1) #'name]
+                                             ;[(eq? (attribute count-spec.start) 0) #'(~optional name body)])])
+               ))
 
     (define-syntax-class sc-pred
       (pattern ([name:id (~or* function:expr function:id)] ...)))
@@ -67,29 +93,123 @@
 
   (require syntax/parse
            'derp
+           (only-in racket/list flatten)
            (for-syntax racket/base syntax/parse 'derp))
   (provide (all-defined-out)
            (all-from-out 'derp))
   
   (define-syntax-class sc-terminal
     #:literals (->?)  ; predicate from sibbling path value
-    (pattern (~or* exact-value:string exact-value:integer))  ; TODO consider allowing quote literals?
-    (pattern predicate:id)
-    (pattern (->? subtree:sc-exact-pat))  ; make the predicate at compile time?
+    (pattern (~or* predicate:id
+                   exact-value:string 
+                   exact-value:integer
+                   (->? subtree:sc-exact-pat)))
+    ;(pattern predicate:id)
+    ;(pattern (~or* exact-value:string exact-value:integer))  ; TODO consider allowing quote literals?
+    ;(pattern (->? subtree:sc-exact-pat))  ; make the predicate at compile time?
     )
 
   (define-syntax-class sc-body
-    (pattern (head:sc-head body:sc-body ... (~optional terminal:sc-terminal))))
-
-
-  (define-syntax-class sc-schema
-    (pattern (head:sc-head body:sc-body ... (~optional terminal:sc-terminal))))
+    (pattern (head:sc-head body:sc-body ... (~optional terminal:sc-terminal))
+             #:attr name (if (attribute head.name)
+                             #'head.name
+                             ; TODO check the name pattern...
+                             #'head.name-pat)
+             #:attr -literals (if (attribute head.name-pat)
+                                  #'(head.name-pat body.-literals ...)
+                                  #'(body.-literals ...))
+             #:attr literals (datum->syntax this-syntax
+                                            (let ([lits (attribute -literals)])
+                                              ;(println lits)
+                                              (flatten (map syntax->datum (flatten lits)))))
+             #:attr start (syntax-e #'head.start)
+             #:attr stop (syntax-e #'head.stop)
+             #:attr head-racket (let ([start (attribute start)]
+                                      [stop (attribute stop)]
+                                      )
+                                  (cond  ; FIXME terminal cond
+                                    [(and start stop)
+                                     #`(#,(attribute name) (body.name body.body ...) ...)  ; FIXME terminals
+                                     ]
+                                    [(and start (not stop))
+                                     #`(~seq (#,(attribute name) (body.name body.body ...) ...) #,#'...+)  ; TODO literal ...?
+                                     ]
+                                    [(and (not start) stop)
+                                     #`(~optional (#,(attribute name) (body.name body.body ...) ...))
+                                     ]
+                                    [(and (not start) (not stop))
+                                     #`(~optional (~seq (#,(attribute name) (body.name body.body ...) ...) #'....))
+                                     ]))
+             #:attr racket #`(#,(attribute name) body.head-racket ...)
+             #:attr -racket '(let ([start (attribute body.start)]
+                                 [stop (attribute body.stop)])
+                             (if start
+                                 (if stop
+                                     #'(head.name body.head-racket ...) ; no ...
+                                     ;#'(head.name (body.name body.body) ... ...) ; no ...
+                                     #'(head.name body.head-racket ...) ; ...
+                                     ;#'(head.name (body.name body.body) ... ...) ; ...
+                                     )
+                                 (if stop
+                                     #'(head.name body.head-racket ...)
+                                     ;#'(head.name (~optional (body.name body.body)) ... ...) ; opt no ...
+                                     ;#'(head.name (~optional (body.name body.body)) ... ...) ; opt ...
+                                     )))
+             #:attr names (if (attribute body)
+                              (cons (attribute head.name) (attribute body.names))
+                              (list (attribute head.name))
+                              )
+             #:attr stx-names (datum->syntax this-syntax (attribute names))
+             #:attr test-name (if (attribute head.name)
+                                  (λ (sxml)
+                                    (println `(,(syntax->datum #'head.name) ,(car sxml)))
+                                    (let ([out (eq? (syntax->datum #'head.name) (car sxml))])
+                                      (println `(test-name: ,out))
+                                      out)
+                                    )
+                                  (λ (sxml)
+                                    ; TODO handle name-pat
+                                    #f)
+                             )
+             #:attr test-restr (if (attribute head.restriction)
+                                   ; this needs more work at the syntax class level
+                                   (λ (sxml)
+                                     (if #t ;(eq? (car sxml) (attribute head.rest-name))
+                                         #t  ; TODO this one is a bit more tricky
+                                         #t))
+                                   (λ (sxml) #t)
+                                   )
+             #:attr test-body 'TODO  ; TODO
+             #:attr test-term (if (attribute terminal)
+                                  (if (attribute terminal.predicate)
+                                      (λ (value) ((attribute terminal.predicate) value))
+                                      (if (attribute terminal.exact-value)
+                                          (λ (value) (eq? value (attribute terminal.exact-value)))
+                                          (if (attribute terminal.subtree)
+                                              (λ (value) #f)  ; TODO
+                                              (raise-syntax-error 'wat "how did we get here!??!"))))
+                                  (λ (sxml) #t)
+                                  )
+             #:attr test (λ (sxml)
+                           ((attribute test-name) sxml)
+                           ((attribute test-restr) sxml)
+                           ((attribute test-term) sxml)  ; FIXME needs to test the terminal
+                                  )
+             #:attr tests (if (attribute body)
+                              (cons (attribute test) (attribute body.tests))
+                              (list (attribute test)))
+             #:attr stx-tests (datum->syntax this-syntax (attribute tests))
+             )
+    )
 )
 
 (require net/url-string sxml ; atm only for the jats bit
          syntax/parse
+         racket/pretty
          'syntax-classes
-         (for-syntax syntax/parse 'syntax-classes)
+         (for-syntax syntax/parse
+                     racket/pretty
+                     'syntax-classes)
          ;(only-in racket/list range)
          ;(for-template (only-in racket/list range))
          ;(for-syntax (only-in racket/list range))
@@ -115,20 +235,119 @@
 ;(require (for-template (only-in racket/list range))
 ;(for-syntax (only-in racket/list range)))
 
+;(pred-let->functions )
+
+(define (->? stx case-statements)
+  (syntax-parse stx
+    [(_ compile-time-subtree-pattern)
+    ;subtree->predicate
+    #'(λ (run-time-subtree-path)
+        ;(let ([-string (compile-time-subtree-pattern.match run-time-subtree-path)])
+        (let ([-string (match run-time-subtree-path)])
+          (case (match run-time-subtree-path compile-time-subtree-pattern)
+            case-statements)))]))
+            ;string-let.case-statements)))]))
 
 (define-syntax (sxml-schema stx)  ; more spec-tree-structure
   (syntax-parse stx
-    [(_ (~optional (~seq #:predicates predicate-let:sc-pred))
+    [(_ (~optional (~seq #:name syntax-name:id))
+        (~optional (~seq #:predicates predicate-let:sc-pred))
         (~optional (~seq #:string->predicate string-let:sc-string-pred))
-        schema:sc-schema)
+        schema:sc-body)
     ;[(_ ([node-name this-node-count-spec (~optional predicate)] body:spec-node ...))
-     #''(WE MADE IT BOYS!)]))
+     (define -BODY
+       ;#'(begin
+           ;(pretty-print '(schema.name schema.body ...))
+           ;)
+       #''(begin
+           ; FIXME this is not the right way to do it
+           (define (validate sxml [name schema.name])
+             ; FIXME schema.body.name...
+             (if (eq? name (car sxml))
+                 (validate (cdr sxml))
+                 (raise-syntax-error 'bad-tag (format
+                                               "tag ~a does not match required ~a"
+                                               schema.name (car sxml)))))
+
+           ))
+     ;(pretty-print #'schema.literals)
+     (define BODY
+       ;#'(datum->syntax stx (attribute schema.names))
+       ;#''(schema.head schema.body ...)
+       ;#''schema.stx-names
+       ;#'(quote schema.stx-tests)
+       ;#''schema.racket
+       (if (attribute syntax-name)
+           #'(define (syntax-name sxml)
+               (let ([stx-sxml (datum->syntax sxml)])
+                 (syntax-parse stx-sxml
+                   #:literals schema.literals
+                   [schema.racket  ; just validate, there may be better ways
+                    #'(stx-sxml)])))
+           #'(λ (sxml)
+               (let ([stx-sxml (datum->syntax sxml)])
+                 (syntax-parse stx-sxml
+                   #:literals schema.literals
+                   [schema.racket  ; just validate, there may be better ways
+                    #'(stx-sxml)]))))
+       ;#'"HELLO"
+       )
+     ;(pretty-print `(compile-time: ,(cadr (syntax->datum BODY))))
+     ;(pretty-print `(compile-time: ,(syntax->datum BODY)))
+
+     (define S-BODY
+       (if (attribute string-let)
+           #`(begin
+              #,BODY)
+           BODY))
+
+     ; FIXME gonna be a bit different using syntax, would have to use with-syntax
+     ; or something like that
+     (define P-BODY (if (attribute predicate-let)
+                        #`(let predicate-let
+                              ; TODO string-let
+                              (pretty-print (list 'predicates: predicate-let.name ...))
+                            #,S-BODY)
+                        S-BODY))
+     P-BODY
+     ]))
+
+; [tag 1] -> (tag body:expr)
+; [tag n] -> (_ (tag body:expr) (tag body:expr) ...)
+; [tag (range 0 1)] -> (_ (~optional (tag body:expr)))
+; [tag (range 0 n)] -> (_ (~optional (tag body:expr)) ...)
+; (head body ... terminal)
+;([@ (range 0 1)]
+    ;([*NAMESPACES* (range 0 1)]
+     ;([(pattern *) (range 0 n)] uri?)))
 
 (module+ test
+
+  (define (wat sxml)
+    (let ((stx-sxml (datum->syntax #f sxml)))
+      (syntax-parse stx-sxml
+        ;#:literals (pattern a:* pattern b:*)  ; FIXME need to unique it as well and get rid of patterns
+        [(a (b "c"))
+         stx-sxml]))
+    ; maybe return #t if all good?
+    ; we error on not good so that help
+    sxml)
+
+  (wat '(a (b "c")))
+  ; (wat '(a (b "e"))) fails as expected
+  )
+'(module+ test 
+
   ;(sxml-schema ([tag 0]))  ; fails as expected
+  ;(sxml-schema ([]) )
+  ;((car (sxml-schema ([tag 1]))) '(tag))
   (sxml-schema ([tag 1]))
   (sxml-schema ([tag 1] 0))
+  ;(procedure-arity (car (sxml-schema ([tag 1] 0))))
+  ;((car (sxml-schema ([tag 1] 0))) '(tag))
+  ;((car (sxml-schema ([tag 1] 0))) '(0))
   (sxml-schema ([tag 1] ""))
+  (sxml-schema ([tag 1] ([tag2 1 #:restrictions ([(tag3 _) 1])] ([tag3 (range 0 n)] string?))))
   ;(sxml-schema ([tag 1] 0 ""))  ; fails as expected
   ;(sxml-schema ([tag 1] "" 0))  ; fails as expected
   (sxml-schema ([tag 1] ([tag2 1] 0) 0))
@@ -153,6 +372,8 @@
                 ([tag2 (range 0 1)] "value2")
                 ([tag3 (range 0 n)] predicate?)
                 "value"))
+  (sxml-schema ([top 1] ([yeee (range 0 n)] "wat")))
+  (sxml-schema ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
 )
 
 ;; utility
@@ -215,7 +436,7 @@
 ;(define-syntax-parser #%node-spec
   ;[(_ a b c)])
 
-(define schema-structure ;(define-schema-structure  ; TODO hrm...
+(define (schema-structure) ;(define-schema-structure  ; TODO hrm...
 #|
 structure validation syntax
     element : ssexp symbol
@@ -229,16 +450,21 @@ structure validation syntax
     int>prev-or-n : INTEGER | n  ; must test INTEGER > 0-1
     child-is-pred : racket-predicate  ; must test explicitly whether absense is valid in context
 |#
-  (sxml-schema
+  (define-values (resource-type-generals relation-types xml-langs)
+    (values  ; TODO pull these out
+     '("Material" "Software" "Service")
+     '("IsCompiledBy" "IsIdenticalTo" "IsDerivedFrom")
+     '("en-US")))
+  '(sxml-schema
   #:predicates ([related-identifier-type? (λ (value) (member value '("URL" "DOI")))]
                 [resource-type-general? (λ (value) (member value resource-type-generals))]
                 [relation-type? (λ (value) (member value relation-types))]
                 [date-type? (λ (value) (member value '("Submitted" "Updated")))]
                 [xml-lang? (λ (value) (member value xml-langs))]
                 [rrid? (λ (value) (string-prefix? value "RRID:"))]
-                [url? (λ (value) (regexp-match url-regexp value))]
+                [uri? (λ (value) (regexp-match url-regexp value))]
                 )
-  #:string->predicate (["DOI" doi?] ["RRID" rrid?] ["URL" url?])
+  #:string->predicate (["DOI" doi?] ["RRID" rrid?] ["URL" uri?])
   ([*TOP* 1]
    ([@ (range 0 1)]
     ([*NAMESPACES* (range 0 1)]
@@ -270,7 +496,7 @@ structure validation syntax
      ([contributor (range 0 n)]
       ([@ 1] ([contributorType 1] string?))  ; member?
       ([contributorName 1] string?)))
-    ([dates 1 #:restrictions ([(date (@ (dateType _ ))) 1])]  ; subtree restrictions
+    ([dates 1 #:restrictions ([(date (@ (dateType _ ))) 1])]  ; subtree restrictions for at most one
      ;([dates 1]
      ([date (range 1 n)
             #:restrictions ([(@ (dateType "Updated")) (range 0 1) #:warn 0]
@@ -304,6 +530,8 @@ structure validation syntax
       (->? (@ (relatedIdentifierType _)))))))
       ;(value->predicate (@ (relatedIdentifierType _)))))))
 ))
+
+(define ss (schema-structure))
 
 (define (check-schema schema sxml)
   (define (check-subtree sub-structure sub-sxml [current null])
