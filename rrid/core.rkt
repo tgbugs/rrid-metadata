@@ -71,7 +71,7 @@
       (pattern ([subtree:sc-exact-pat 
                  count-spec:sc-count
                  (~optional (~seq #:warn on-count:exact-nonnegative-integer))] ...)))
-    
+
     (define-syntax-class sc-head
       (pattern [(~or* -name:id name-pat:sc-name-pat)
                 count-spec:sc-count
@@ -79,6 +79,16 @@
                #:attr name (if (attribute -name)
                                #'-name
                                #'name-pat.name-pattern)
+               #:attr sc-pat (if (attribute -name)
+                                 #f  ; FIXME sigh, what is the right tool for dealing with these...
+                                 #'(define-syntax-class name
+                                     (pattern runtime-name:id
+                                              #:fail-unless (λ ()
+                                                              (let* ([p-s (string-split (symbol->string 'name) "*" #:trim? #f)]
+                                                                     [p (car p-s)]
+                                                                     [s (cadr p-s)])
+                                                                (and (string-prefix runtime-name p)
+                                                                     (string-suffix runtime-name s)))))))
                #:attr start #'count-spec.start
                #:attr stop #'count-spec.stop
                ; we can't actually do this inside of there becuase ~optional needs to wrap it
@@ -115,7 +125,32 @@
 
   (define-syntax-class sc-body
     (pattern (head:sc-head body:sc-body ... (~optional terminal:sc-terminal))
-             #:attr name #'head.name
+             #:attr name (if (attribute head.sc-pat)
+                          ; TODO #:declare runtime-name head.sc-pat
+                             (car (generate-temporaries '(runtime-name)))
+                             #'head.name)
+             ;#:do [(println `(ct-body: ,(attribute body)))]
+             ;#:do [(println `(ct-body: ,(syntax->datum #'(body ...))))]
+             ;#:attr -sc-pat #'head.sc-pat
+             ;#:attr sc-pat #'body.-sc-pat
+             #:attr abody (attribute body)
+             #:attr syntax-classes (if (syntax->datum #'(body.syntax-classes ...))
+                                       (if (attribute head.sc-pat)
+                                           #'(head.sc-pat body.syntax-classes ...)
+                                           #'(body.syntax-classes ...))
+                                       (if (attribute head.sc-pat)
+                                           #'head.sc-pat
+                                           #f))
+             #:do [(println `(ct-body-sc: ,(attribute body.syntax-classes)))]
+             #:attr head-convention #'[name head.name]
+             #:attr local-conventions (if (attribute head.sc-pat)
+                                          #'([name head.name] body.head-convention ...)
+                                          (if (syntax->datum #'(body.local-conventions ...))
+                                              #'(body.local-conventions ...)
+                                              #f
+                                              )
+                                          )
+             #:do [(println `(ct-lc: ,(attribute local-conventions)))]
              ;#:attr name (if (attribute head.name)
                              ;#'head.name
                              ; TODO check the name pattern...
@@ -235,6 +270,7 @@
          racket/pretty
          'syntax-classes
          (for-syntax syntax/parse
+                     racket/syntax
                      racket/pretty
                      'syntax-classes)
          ;(only-in racket/list range)
@@ -283,59 +319,30 @@
         (~optional (~seq #:predicates predicate-let:sc-pred))
         (~optional (~seq #:string->predicate string-let:sc-string-pred))
         schema:sc-body)
-    ;[(_ ([node-name this-node-count-spec (~optional predicate)] body:spec-node ...))
-     (define -BODY
-       ;#'(begin
-           ;(pretty-print '(schema.name schema.body ...))
-           ;)
-       #''(begin
-           ; FIXME this is not the right way to do it
-           (define (validate sxml [name schema.name])
-             ; FIXME schema.body.name...
-             (if (eq? name (car sxml))
-                 (validate (cdr sxml))
-                 (raise-syntax-error 'bad-tag (format
-                                               "tag ~a does not match required ~a"
-                                               schema.name (car sxml)))))
-
-           ))
-     ;(pretty-print #'schema.literals)
      (define BODY
-       ;#'(datum->syntax stx (attribute schema.names))
-       ;#''(schema.head schema.body ...)
-       ;#''schema.stx-names
-       ;#'(quote schema.stx-tests)
-       ;#''schema.racket
+       ; FIXME with-syntax* fails completely silently when not imported wtf
+       (with-syntax* ([shead (attribute schema.head)]
+                      ;[sc-pat (attribute schema.sc-pat)]
+                      ;[sc-pat (attribute sbody.-sc-pat)]
+                      ;[sbody (attribute schema.body)]
+                      [checker #'(let ([stx-sxml (datum->syntax #f sxml)])  ; vs with-syntax?
+                                   ;schema.abody ...  annoying that this does not work
+                                   ;schema.body ...
+                                   ;sbody
+                                  ;sbody.sc-pat ...
+                                  ;schema.-sc-pat ... ; FIXME annoying that the way this is done can't use ...
+                                  (syntax-parse stx-sxml
+                                    ;#:literals schema.literals  ; we don't actually want this fix the pattern issue
+                                    #:local-conventions schema.local-conventions
+                                    [schema.racket  ; just validate, there may be better ways
+                                     stx-sxml]))])
        (if (attribute syntax-name)
-           ;#'(define (syntax-name sxml)
-               ;(define-syntax (checker stx-sxml)
-                 ;(syntax-parse stx-sxml
-                   ;#:literals schema.literals
-                   ;[schema.racket  ; just validate, there may be better ways
-                    ;#'(stx-sxml)]))
-               ;(checker (syntax->datum sxml)))
-           ;#'(λ (sxml)
-               ;(define-syntax (checker stx-sxml)
-                 ;(syntax-parse stx-sxml
-                   ;#:literals schema.literals
-                   ;[schema.racket  ; just validate, there may be better ways
-                    ;#'(stx-sxml)]))
-               ;(checker (syntax->datum sxml)))
            #'(define (syntax-name sxml)
-               (let ([stx-sxml (datum->syntax #f sxml)])  ; vs with-syntax?
-                 (syntax-parse stx-sxml
-                   #:literals schema.literals  ; we don't actually want this fix the pattern issue
-                   [schema.racket  ; just validate, there may be better ways
-                    stx-sxml]))
+               checker
                sxml)
            #'(λ (sxml)
-               (let ([stx-sxml (datum->syntax #f sxml)])
-                 (syntax-parse stx-sxml
-                   #:literals schema.literals  ; we don't actually want this fix the pattern issue
-                   [schema.racket  ; just validate, there may be better ways
-                    stx-sxml]))
-               sxml)
-       ;#'"HELLO"
+               checker
+               sxml))
        ))
      ;(pretty-print `(compile-time: ,(cadr (syntax->datum BODY))))
      (pretty-print `(compile-time: ,(syntax->datum BODY)))
@@ -367,7 +374,7 @@
 ;([@ (range 0 1)]
     ;([*NAMESPACES* (range 0 1)]
      ;([(pattern *) (range 0 n)] uri?)))
-
+(define asdfasdf '(hello))
 (module+ test
 
   (define (wat sxml)
@@ -439,6 +446,9 @@
   (test2 '(a:* (b:* "not wat")))
   (test2 '(a:* (b:* "wat")))
   (sxml-schema #:name thing ([TOP 1] ([asdf (range 0 n)] "hello there")))
+  (sxml-schema #:name multi-body-test ([TOP 1] ([(pattern *body1) (range 0 n)] "hello there")
+                                               ([(pattern *body2) (range 0 n)] "general nobody")
+                                               null))
 )
 
 ;; utility
