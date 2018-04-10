@@ -65,7 +65,7 @@
                #:attr stop #'number)
       (pattern (range start:exact-nonnegative-integer stop:exact-positive-integer))
       (pattern (range start:exact-nonnegative-integer -stop:any-number)
-               #:attr stop #'#f)) 
+               #:attr stop #'0)) 
 
     (define-syntax-class sc-restr
       (pattern ([subtree:sc-exact-pat 
@@ -73,9 +73,12 @@
                  (~optional (~seq #:warn on-count:exact-nonnegative-integer))] ...)))
     
     (define-syntax-class sc-head
-      (pattern [(~or* name:id name-pat:sc-name-pat)
+      (pattern [(~or* -name:id name-pat:sc-name-pat)
                 count-spec:sc-count
                 (~optional (~seq #:restrictions restriction:sc-restr))]
+               #:attr name (if (attribute -name)
+                               #'-name
+                               #'name-pat.name-pattern)
                #:attr start #'count-spec.start
                #:attr stop #'count-spec.stop
                ; we can't actually do this inside of there becuase ~optional needs to wrap it
@@ -92,6 +95,7 @@
       (pattern ([string-value:string predicate:id] ...))))
 
   (require syntax/parse
+           racket/pretty
            'derp
            (only-in racket/list flatten)
            (for-syntax racket/base syntax/parse 'derp))
@@ -111,12 +115,13 @@
 
   (define-syntax-class sc-body
     (pattern (head:sc-head body:sc-body ... (~optional terminal:sc-terminal))
-             #:attr name (if (attribute head.name)
-                             #'head.name
+             #:attr name #'head.name
+             ;#:attr name (if (attribute head.name)
+                             ;#'head.name
                              ; TODO check the name pattern...
-                             #'head.name-pat)
+                             ;#'head.npattern)
              #:attr -literals (if (attribute head.name-pat)
-                                  #'(head.name-pat body.-literals ...)
+                                  #'(name body.-literals ...)
                                   #'(body.-literals ...))
              #:attr literals (datum->syntax this-syntax
                                             (let ([lits (attribute -literals)])
@@ -124,23 +129,45 @@
                                               (flatten (map syntax->datum (flatten lits)))))
              #:attr start (syntax-e #'head.start)
              #:attr stop (syntax-e #'head.stop)
-             #:attr head-racket (let ([start (attribute start)]
-                                      [stop (attribute stop)]
-                                      )
+             #:attr head-racket (let* ([-start (attribute start)]
+                                       [-stop (attribute stop)]
+                                       [start (cond [(= -start 0) #f]
+                                                    [(= -start 1) #t]
+                                                    [#t (raise-syntax-error 'hrm "HRM allow min 2?")])]
+                                       [stop (cond [(= -stop 0) #f]
+                                                   [(= -stop 1) #t]
+                                                   [#t (raise-syntax-error 'hrm "HRM allow not 1 or n?")])])
+                                  ;(pretty-print `(start-stop: ,start ,stop ,(attribute name)))
                                   (cond  ; FIXME terminal cond
                                     [(and start stop)
-                                     #`(#,(attribute name) (body.name body.body ...) ...)  ; FIXME terminals
+                                     #`(#,(attribute name) body.head-racket ...)  ; FIXME terminals
+                                     ;#`(#,(attribute name) (body.name body.body ...) ...)  ; FIXME terminals
                                      ]
                                     [(and start (not stop))
-                                     #`(~seq (#,(attribute name) (body.name body.body ...) ...) #,#'...+)  ; TODO literal ...?
+                                     (with-syntax ([elip+ (datum->syntax this-syntax '...+)]
+                                                   [seq (datum->syntax this-syntax '~seq)])
+                                       ; dont need seq since these should always be enclosed?
+                                       ; but then how to we stick the elip on?
+                                     #`(seq (#,(attribute name) body.head-racket ...) elip+)
+                                     ;#`(#,(attribute name) (body.name body.body ...) ... elip+)
+                                     )
                                      ]
                                     [(and (not start) stop)
-                                     #`(~optional (#,(attribute name) (body.name body.body ...) ...))
+                                     #`(~optional (#,(attribute name) body.head-racket ...))
+                                     ;#`(~optional (#,(attribute name) (body.name body.body ...) ...))
                                      ]
                                     [(and (not start) (not stop))
-                                     #`(~optional (~seq (#,(attribute name) (body.name body.body ...) ...) #'....))
-                                     ]))
-             #:attr racket #`(#,(attribute name) body.head-racket ...)
+                                     (with-syntax ([elip (datum->syntax this-syntax '...)]
+                                                   [opt (datum->syntax this-syntax '~optional)]
+                                                   [seq (datum->syntax this-syntax '~seq)]
+                                                   )
+                                     #`(opt (seq (#,(attribute name) body.head-racket ...) elip))
+                                       ;#`(~optional (~seq (#,(attribute name) (body.name body.head-racket ...) ...) elip))
+                                       )
+                                     ]
+                                    [#t (raise-syntax-error 'wat "should not get here")]
+                                    ))
+             #:attr racket (attribute head-racket); #`(#,(attribute name) body.head-racket ...)
              #:attr -racket '(let ([start (attribute body.start)]
                                  [stop (attribute body.stop)])
                              (if start
@@ -248,8 +275,10 @@
             case-statements)))]))
             ;string-let.case-statements)))]))
 
+(define stx-sxml 'ok-fine)  ; this is used in a with-syntax binding...
 (define-syntax (sxml-schema stx)  ; more spec-tree-structure
   (syntax-parse stx
+    #:literals (stx-sxml)
     [(_ (~optional (~seq #:name syntax-name:id))
         (~optional (~seq #:predicates predicate-let:sc-pred))
         (~optional (~seq #:string->predicate string-let:sc-string-pred))
@@ -278,22 +307,40 @@
        ;#'(quote schema.stx-tests)
        ;#''schema.racket
        (if (attribute syntax-name)
+           ;#'(define (syntax-name sxml)
+               ;(define-syntax (checker stx-sxml)
+                 ;(syntax-parse stx-sxml
+                   ;#:literals schema.literals
+                   ;[schema.racket  ; just validate, there may be better ways
+                    ;#'(stx-sxml)]))
+               ;(checker (syntax->datum sxml)))
+           ;#'(λ (sxml)
+               ;(define-syntax (checker stx-sxml)
+                 ;(syntax-parse stx-sxml
+                   ;#:literals schema.literals
+                   ;[schema.racket  ; just validate, there may be better ways
+                    ;#'(stx-sxml)]))
+               ;(checker (syntax->datum sxml)))
            #'(define (syntax-name sxml)
-               (let ([stx-sxml (datum->syntax sxml)])
+               (let ([stx-sxml (datum->syntax #f sxml)])  ; vs with-syntax?
                  (syntax-parse stx-sxml
-                   #:literals schema.literals
+                   #:literals schema.literals  ; we don't actually want this fix the pattern issue
                    [schema.racket  ; just validate, there may be better ways
-                    #'(stx-sxml)])))
+                    stx-sxml]))
+               sxml)
            #'(λ (sxml)
-               (let ([stx-sxml (datum->syntax sxml)])
+               (let ([stx-sxml (datum->syntax #f sxml)])
                  (syntax-parse stx-sxml
-                   #:literals schema.literals
+                   #:literals schema.literals  ; we don't actually want this fix the pattern issue
                    [schema.racket  ; just validate, there may be better ways
-                    #'(stx-sxml)]))))
+                    stx-sxml]))
+               sxml)
        ;#'"HELLO"
-       )
+       ))
      ;(pretty-print `(compile-time: ,(cadr (syntax->datum BODY))))
-     ;(pretty-print `(compile-time: ,(syntax->datum BODY)))
+     (pretty-print `(compile-time: ,(syntax->datum BODY)))
+     ;(pretty-print `(compile-time: ,(syntax->datum (expand-once BODY))))
+     ;(pretty-print `(compile-time: ,(expand-once BODY)))
 
      (define S-BODY
        (if (attribute string-let)
@@ -327,17 +374,31 @@
     (let ((stx-sxml (datum->syntax #f sxml)))
       (syntax-parse stx-sxml
         ;#:literals (pattern a:* pattern b:*)  ; FIXME need to unique it as well and get rid of patterns
-        [(a (b "c"))
+        [(a (b "c") ...)
          stx-sxml]))
     ; maybe return #t if all good?
     ; we error on not good so that help
     sxml)
 
-  (wat '(a (b "c")))
+  (wat '(a (b "c") (b "c")))
   ; (wat '(a (b "e"))) fails as expected
+  (define (thing2 sxml)
+    (let ((stx-sxml (datum->syntax #f sxml)))
+      (syntax-parse stx-sxml
+        ((TOP (~optional (~seq (asdf) ...))) stx-sxml)))
+    sxml)
+  (thing2 '(TOP))
+  (thing2 '(TOP (asdf) (asdf)))
+  (define (aaa sxml)
+    (let ((stx-sxml (datum->syntax #f sxml)))
+      (syntax-parse stx-sxml ((top (~optional (~seq (yeee) ...))) stx-sxml)))
+    sxml)
+  (aaa '(top))
+  (aaa '(top (yeee)))
   )
-'(module+ test 
+(module+ test 
 
+  '(
   ;(sxml-schema ([tag 0]))  ; fails as expected
   ;(sxml-schema ([]) )
   ;((car (sxml-schema ([tag 1]))) '(tag))
@@ -372,8 +433,12 @@
                 ([tag2 (range 0 1)] "value2")
                 ([tag3 (range 0 n)] predicate?)
                 "value"))
-  (sxml-schema ([top 1] ([yeee (range 0 n)] "wat")))
-  (sxml-schema ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
+  )
+  (sxml-schema #:name test1 ([top 1] ([yeee (range 0 n)] "wat")))
+  (sxml-schema #:name test2 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
+  (test2 '(a:* (b:* "not wat")))
+  (test2 '(a:* (b:* "wat")))
+  (sxml-schema #:name thing ([TOP 1] ([asdf (range 0 n)] "hello there")))
 )
 
 ;; utility
