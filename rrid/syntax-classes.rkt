@@ -149,11 +149,11 @@
                                          #'()
                                          ;#f
                                          ))
-           #:do [(println `(ct-body-sc: ,(attribute body.syntax-classes)))]
+           ;#:do [(println `(ct-body-sc: ,(attribute body.syntax-classes)))]
            #:attr head-convention #'[name head.name]
            #:attr local-conventions (if (attribute head.sc-pat)
                                         (let ([thing #'([name head.name] body.head-convention ...)])
-                                          (println `(halp: ,thing))
+                                          ;(println `(halp: ,thing))
                                           thing)
                                         (let ([blc (map flatten
                                                         (filter (λ (thing) (not (null? thing)))
@@ -167,7 +167,7 @@
                                               ;#'(body.local-conventions ...)
                                               ;#f
                                               )))
-           #:do [(println `(ct-lc: ,(syntax->datum (attribute local-conventions))))]
+           ;#:do [(println `(ct-lc: ,(syntax->datum (attribute local-conventions))))]
            ;#:attr name (if (attribute head.name)
            ;#'head.name
            ; TODO check the name pattern...

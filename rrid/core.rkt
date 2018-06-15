@@ -49,12 +49,7 @@
             case-statements)))]))
             ;string-let.case-statements)))]))
 
-(define stx-sxml 'ok-fine)  ; this is used in a with-syntax binding... TODO use define-syntax with λ
-;(define-namespace-anchor anc)
-;(define this-ns (namespace-anchor->namespace anc))
-;(begin-for-syntax
-  ;(define-namespace-anchor anc)
-  ;(define this-ns (namespace-anchor->namespace anc)))
+(define-syntax stx-sxml (λ () "Can't use stx-sxml outside an sxml-schema declaration"))  ; TODO proper error
 (define-syntax (sxml-schema stx)  ; more spec-tree-structure
   (syntax-parse stx
     #:literals (stx-sxml)
@@ -93,7 +88,7 @@
      ;(pretty-print `(compile-time: ,(syntax->datum (expand-once BODY))))
      ;(pretty-print `(compile-time: ,(expand-once BODY)))
 
-     (pretty-print `(ct-syntax-classes: ,(syntax->datum #'schema.syntax-classes)))
+     ;(pretty-print `(ct-syntax-classes: ,(syntax->datum #'schema.syntax-classes)))
      '(when (not-null? (syntax->datum #'schema.syntax-classes))
        '(map (λ (datum) (println `(hrm: ,datum))
 
@@ -105,22 +100,25 @@
 
      ;(println this-ns)
      ;(println (namespace-mapped-symbols this-ns))
+     (define (normalize-sc sc)
+       (if (eq? (car sc) 'define-syntax-class)
+           (list 'begin sc)
+           (cons 'begin sc)))
 
      (define S-BODY
        (let ([sc (syntax->datum (attribute schema.syntax-classes))])
          (if (attribute string-let)
              (if (not (null? sc))
                  #`(begin
-                     #,(datum->syntax this-syntax (cons 'begin sc))
+                     #,(datum->syntax this-syntax (normalize-sc sc))
                      #,BODY)
                  #`(begin #,BODY)
                  )
              ;(if (attribute schema.syntax-classes)
              (if (not (null? sc))
-                 #`(begin #,(datum->syntax this-syntax (cons 'begin sc)) #,BODY)
+                 #`(begin #,(datum->syntax this-syntax (normalize-sc sc)) #,BODY)
                  BODY
                  ))
-
          ))
 
      ; FIXME gonna be a bit different using syntax, would have to use with-syntax
@@ -133,6 +131,7 @@
                         S-BODY))
 
      (pretty-write `(ct-P-BODY: ,(syntax->datum P-BODY)))
+     (pretty-write `(ct-MORE: ,(syntax->datum #'schema.test-name)))
      P-BODY
      ]))
 
@@ -175,7 +174,7 @@
   )
 (module+ test 
 
-  '(
+  #'(
   ;(sxml-schema ([tag 0]))  ; fails as expected
   ;(sxml-schema ([]) )
   ;((car (sxml-schema ([tag 1]))) '(tag))
@@ -211,10 +210,12 @@
                 ([tag3 (range 0 n)] predicate?)
                 "value"))
   )
+  ;(sixth (schema-structure))
   (sxml-schema #:name test1 ([top 1] ([yeee (range 0 n)] "wat")))
   (test1 '(top (yeee) (yeee)))  ; FIXME this is incorrect but succeeds
   ;(test1 '(top (yeee "wat") (yeee "wat")))
   (sxml-schema #:name test2 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
+  (test2 '(a:* (b:*))) ; FIXME this should fail and the next should succeed
   (test2 '(a:* (b:* "not wat")))
   #|
   (test2 '(a:* (b:* "wat")))
