@@ -85,8 +85,10 @@
                                                             (let* ([p-s (string-split (symbol->string 'name) "*" #:trim? #f)]
                                                                    [p (car p-s)]
                                                                    [s (cadr p-s)])
-                                                              (and (string-prefix runtime-name p)
-                                                                   (string-suffix runtime-name s)))))))
+                                                              (and (string-prefix? #'runtime-name p)
+                                                                   (string-suffix? #'runtime-name s))))
+                                            "Failed to match pattern"  ; TODO better error messaging
+                                            )))
              #:attr start #'count-spec.start
              #:attr stop #'count-spec.stop
              ; we can't actually do this inside of there becuase ~optional needs to wrap it
@@ -120,6 +122,11 @@
   ;(pattern (~or* exact-value:string exact-value:integer))  ; TODO consider allowing quote literals?
   ;(pattern (->? subtree:sc-exact-pat))  ; make the predicate at compile time?
   )
+(define (not-null? thing) (not (null? thing)))
+(define (flatten-dots stx this-syntax)
+  ;(datum->syntax this-syntax (map flatten (filter not-null? (syntax->datum stx))))
+  (datum->syntax this-syntax (filter not-null? (syntax->datum stx)))
+  )
 
 (define-syntax-class sc-body
   (pattern (head:sc-head body:sc-body ... (~optional terminal:sc-terminal))
@@ -132,13 +139,16 @@
            ;#:attr -sc-pat #'head.sc-pat
            ;#:attr sc-pat #'body.-sc-pat
            #:attr abody (attribute body)
-           #:attr syntax-classes (if (syntax->datum #'(body.syntax-classes ...))
+           #:attr syntax-classes (if (not (null? (syntax->datum #'(body.syntax-classes ...))))
                                      (if (attribute head.sc-pat)
-                                         #'(head.sc-pat body.syntax-classes ...)
-                                         #'(body.syntax-classes ...))
+                                         (flatten-dots #'(head.sc-pat body.syntax-classes ...) this-syntax)
+                                         (flatten-dots #'(body.syntax-classes ...) this-syntax)
+                                         )
                                      (if (attribute head.sc-pat)
                                          #'head.sc-pat
-                                         #f))
+                                         #'()
+                                         ;#f
+                                         ))
            #:do [(println `(ct-body-sc: ,(attribute body.syntax-classes)))]
            #:attr head-convention #'[name head.name]
            #:attr local-conventions (if (attribute head.sc-pat)

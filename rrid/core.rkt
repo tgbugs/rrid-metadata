@@ -1,5 +1,6 @@
 #lang racket
 (require syntax/parse/debug)
+(define (not-null? thing) (not (null? thing)))
 (debug-syntax-parse!)
 (require net/url-string sxml ; atm only for the jats bit
          syntax/parse
@@ -7,6 +8,7 @@
          "syntax-classes.rkt"
          (for-syntax syntax/parse
                      racket/syntax
+                     racket/string
                      racket/pretty
                      "syntax-classes.rkt")
          ;(only-in racket/list range)
@@ -47,7 +49,12 @@
             case-statements)))]))
             ;string-let.case-statements)))]))
 
-(define stx-sxml 'ok-fine)  ; this is used in a with-syntax binding...
+(define stx-sxml 'ok-fine)  ; this is used in a with-syntax binding... TODO use define-syntax with λ
+;(define-namespace-anchor anc)
+;(define this-ns (namespace-anchor->namespace anc))
+;(begin-for-syntax
+  ;(define-namespace-anchor anc)
+  ;(define this-ns (namespace-anchor->namespace anc)))
 (define-syntax (sxml-schema stx)  ; more spec-tree-structure
   (syntax-parse stx
     #:literals (stx-sxml)
@@ -82,15 +89,39 @@
                sxml))
        ))
      ;(pretty-print `(compile-time: ,(cadr (syntax->datum BODY))))
-     (pretty-print `(compile-time: ,(syntax->datum BODY)))
+     (pretty-print `(ct-BODY: ,(syntax->datum BODY)))
      ;(pretty-print `(compile-time: ,(syntax->datum (expand-once BODY))))
      ;(pretty-print `(compile-time: ,(expand-once BODY)))
 
+     (pretty-print `(ct-syntax-classes: ,(syntax->datum #'schema.syntax-classes)))
+     '(when (not-null? (syntax->datum #'schema.syntax-classes))
+       '(map (λ (datum) (println `(hrm: ,datum))
+
+               (eval-syntax (datum->syntax this-syntax datum)))
+            (syntax->datum #'schema.syntax-classes))
+       (map (λ (datum) (eval-syntax (datum->syntax this-syntax datum) this-ns))
+            (syntax->datum #'schema.syntax-classes))
+       )
+
+     ;(println this-ns)
+     ;(println (namespace-mapped-symbols this-ns))
+
      (define S-BODY
-       (if (attribute string-let)
-           #`(begin
-              #,BODY)
-           BODY))
+       (let ([sc (syntax->datum (attribute schema.syntax-classes))])
+         (if (attribute string-let)
+             (if (not (null? sc))
+                 #`(begin
+                     #,(datum->syntax this-syntax (cons 'begin sc))
+                     #,BODY)
+                 #`(begin #,BODY)
+                 )
+             ;(if (attribute schema.syntax-classes)
+             (if (not (null? sc))
+                 #`(begin #,(datum->syntax this-syntax (cons 'begin sc)) #,BODY)
+                 BODY
+                 ))
+
+         ))
 
      ; FIXME gonna be a bit different using syntax, would have to use with-syntax
      ; or something like that
@@ -100,6 +131,8 @@
                               (pretty-print (list 'predicates: predicate-let.name ...))
                             #,S-BODY)
                         S-BODY))
+
+     (pretty-write `(ct-P-BODY: ,(syntax->datum P-BODY)))
      P-BODY
      ]))
 
@@ -179,14 +212,17 @@
                 "value"))
   )
   (sxml-schema #:name test1 ([top 1] ([yeee (range 0 n)] "wat")))
+  (test1 '(top (yeee) (yeee)))  ; FIXME this is incorrect but succeeds
+  ;(test1 '(top (yeee "wat") (yeee "wat")))
   (sxml-schema #:name test2 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
-  (test1 '(top (yeee "wat") (yeee "wat")))
   (test2 '(a:* (b:* "not wat")))
+  #|
   (test2 '(a:* (b:* "wat")))
   (sxml-schema #:name thing ([TOP 1] ([asdf (range 0 n)] "hello there")))
   (sxml-schema #:name multi-body-test ([TOP 1] ([(pattern *body1) (range 0 n)] "hello there")
                                                ([(pattern *body2) (range 0 n)] "general nobody")
                                                null))
+  |#
 )
 
 ;; utility
