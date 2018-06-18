@@ -94,15 +94,15 @@
                                #f  ; FIXME sigh, what is the right tool for dealing with these...
                                #'(define-syntax-class name
                                    (pattern runtime-name:id
-                                            #:fail-unless (λ ()
-                                                            (let* ([p-s (string-split (symbol->string 'match) "*" #:trim? #f)]
-                                                                   [p (car p-s)]
-                                                                   [s (cadr p-s)])
-                                                              (println '(why isnt this working?))
-                                                              (and (string-prefix? #'runtime-name p)
-                                                                   (string-suffix? #'runtime-name s))))
-                                            "Failed to match pattern"  ; TODO better error messaging
-                                            )))
+                                            #:do [(let* ([p-s (string-split (symbol->string 'match) "*" #:trim? #f)]
+                                                         [p (car p-s)]
+                                                         [s (cadr p-s)])
+                                                    (unless (and (string-prefix? (symbol->string (syntax->datum #'runtime-name)) p)
+                                                                 (string-suffix? (symbol->string (syntax->datum #'runtime-name)) s))
+                                                      (raise-syntax-error 'bad-structure
+                                                                          (format "expected ~a got ~a"
+                                                                                  'match
+                                                                                  (syntax->datum #'runtime-name)))))])))
              #:attr start #'count-spec.start
              #:attr stop #'count-spec.stop
              ; we can't actually do this inside of there becuase ~optional needs to wrap it
@@ -140,9 +140,11 @@
            #:attr sc-pat (cond [(attribute predicate)
                                 #'(define-syntax-class termsc
                                     (pattern runtime-value
-                                             #:fail-unless (λ () (predicate #'runtime-value))
-                                             (format "TODO ~a not a ~a" #'runtime-value (symbol->string predicate))
-                                             ))]
+                                             #:do [(unless (predicate (syntax->datum #'runtime-value))
+                                                     (raise-syntax-error 'bad-structure
+                                                                         (format "TODO ~a not a ~a"
+                                                                                 #'runtime-value
+                                                                                 (symbol->string 'predicate))))]))]
                                ;[(attribute exact-value)
                                 ;#'(define-syntax-class terminal
                                     ;(pattern runtime-value

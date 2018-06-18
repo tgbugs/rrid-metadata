@@ -189,55 +189,59 @@
   ;(sixth (schema-structure))
   (sxml-schema #:name test-pred ([top 1] ([head (range 1 n)] string?)))
   (test-pred '(top (head "anything") (head "anything2")))
-  (test-pred '(top (head "anything") (head 'not-a-string)))  ; FIXME this should fail
+  ;(test-pred '(top (head "anything") (head 'not-a-string)))  ; fails as expected
   (sxml-schema #:name test1 ([top 1] ([yeee (range 0 n)] "wat")))
   ;(test1 '(top (yeee) (yeee)))  ; fails as expected
   (test1 '(top (yeee "wat") (yeee "wat")))
   (sxml-schema #:name test2 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
   ;(test2 '(a:* (b:*))) ; fails as expected
   ;(test2 '(a:* (b:* "not wat")))  ; fails as expected
-  (test2 '(should (fail "wat")))
+  ;(test2 '(should (fail "wat")))  ; fails as expected
   ;(test2 '(should (fail "and does")))
   (test2 '(a:* (b:* "wat")))
   ;(test2 '(a:* (b:* "wat") (b:* "wat")))  ; fails as expected
   (sxml-schema #:name test3 ([(pattern a:*) 1] ([(pattern b:*) (range 0 n)] "wat")))  ; test for duplicate pattern defs
   (test3 '(a:* (b:* "wat") (b:* "wat")))
-  #|
-  (test2 '(a:* (b:* "wat")))
+  (test3 '(a:hello (b:there "wat")))
+  ;(test3 '(b:hello (a:there "wat"))) ; failes as expected
+
   (sxml-schema #:name thing ([TOP 1] ([asdf (range 0 n)] "hello there")))
   (sxml-schema #:name multi-body-test ([TOP 1] ([(pattern *body1) (range 0 n)] "hello there")
                                                ([(pattern *body2) (range 0 n)] "general nobody")
                                                null))
-  |#
+  (multi-body-test '(TOP (body1 "hello there")
+                         (body2 "general nobody")))
 
-  (define-syntax-class
+  #;(define-syntax-class
     a:*
     (pattern
      runtime-name:id
-     #:fail-when #;(λ () (println 'hello!) #t)
-     (λ ()
-       (let* ((p-s (string-split (symbol->string #'runtime-name) "*" #:trim? #f))
-              (p (car p-s))
-              (s (cadr p-s)))
-         (and (string-prefix? (attribute runtime-name) p)
-              (string-suffix? (attribute runtime-name) s))))
-     "Failed to match pattern"))
-  (define-syntax-class
+     ;#:fail-when (λ () (println "wtf" regular-port) #t)
+     ;#:fail-unless (λ () (raise-syntax-error 'STAPH "pls stop"))
+     #:do [(let* ([p-s (string-split (symbol->string 'a:*) "*" #:trim? #f)]
+                  [p (car p-s)]
+                  [s (cadr p-s)])
+             (println `(working?: p s))
+             (unless (and (string-prefix? (symbol->string (syntax->datum #'runtime-name)) p)
+                          (string-suffix? (symbol->string (syntax->datum #'runtime-name)) s))
+               (raise-syntax-error 'bad-structure (format "expected ~a got ~a" 'a:* (syntax->datum #'runtime-name)))))]))
+  #;(define-syntax-class
     b:*
     (pattern
      runtime-name:id
-     #:fail-when #;(λ () (println 'hello!) #t)
-     (λ ()
-       ;(printf '(why isnt this working?))
-       (let* ((p-s (string-split (symbol->string #'runtime-name) "*" #:trim? #f))
-              (p (car p-s))
-              (s (cadr p-s)))
-         (and (string-prefix? (attribute runtime-name) p)
-              (string-suffix? (attribute runtime-name) s))))
-     (format "Failed to match pattern ~a" #'runtime-name)))
-  (syntax-parse #'(a:* (b:* "wat")) #:local-conventions ((a a:*) (b b:*)) [(a (b "wat")) "this should fail"])
-  (syntax-parse #'(should2 (fail2 "wat")) #:local-conventions ((a a:*) (b b:*)) [(a (b "wat")) "this should fail"])
-  (syntax-parse #'(a:hello (b:world "wat")) #:local-conventions ((a a:*) (b b:*)) [(a (b "wat")) "this should fail"])
+     ;#:fail-when (λ () (println "wtf" regular-port) #t)
+     ;#:fail-unless (λ () (raise-syntax-error 'STAPH "pls stop"))
+     #:do [(let* ([p-s (string-split (symbol->string 'b:*) "*" #:trim? #f)]
+                  [p (car p-s)]
+                  [s (cadr p-s)])
+             (println `(working?: p s))
+             (unless (and (string-prefix? (symbol->string (syntax->datum #'runtime-name)) p)
+                          (string-suffix? (symbol->string (syntax->datum #'runtime-name)) s))
+               (raise-syntax-error 'STAHP "pls")))]))
+  #;(syntax-parse #'(a:* (b:* "wat")) #:local-conventions ((one a:*) (two b:*)) [(one (two "wat"))
+                                                                               "this should fail?"])
+  ;(syntax-parse #'(should2 (fail2 "wat")) #:local-conventions ((a a:*) (b b:*)) [(a (b "wat")) "this should fail"])
+  #;(syntax-parse #'(a:hello (b:world "wat")) #:local-conventions ((a a:*) (b b:*)) [(a (b "wat")) "this should fail"])
 )
 
 ;; utility
@@ -273,7 +277,7 @@
 
 ; see https://lexi-lambda.github.io/blog/2017/08/12/user-programmable-infix-operators-in-racket/
 
-(require (for-syntax syntax/parse/class/paren-shape)
+(require #;(for-syntax syntax/parse/class/paren-shape)  ; leave this out for now
          (prefix-in racket/base/ racket/base)
          syntax/parse/define)
 
@@ -282,7 +286,7 @@
   (syntax-parse stx
     [(_nil quote-stx) #'(quote-stx)]))
 
-(define-syntax-parser define-schema-structure
+#;(define-syntax-parser define-schema-structure
   [[~brackets _ arg ...]
    #'(#%node-spec arg ...)]
   ;[(~parens _ arg ...)
