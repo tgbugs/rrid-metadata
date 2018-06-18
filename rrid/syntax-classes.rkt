@@ -34,6 +34,7 @@
     (define ->? #'value->predicate))
 
   (require syntax/parse
+           racket/syntax
            'double-derp
            (for-syntax racket/base
                        'double-derp
@@ -70,13 +71,22 @@
                count-spec:sc-count
                (~optional (~seq #:warn on-count:exact-nonnegative-integer))] ...)))
 
+  (define count 0)
+  (define (next-name)
+    (let-values ([(n m) (quotient/remainder count 26)]  ; FIXME why doesn't the error here give a line number :/
+           )
+      (set! count (add1 count))
+      (list->string (build-list (add1 n) (λ (blank) (integer->char (+ 97 m)))))  ; FIXME there has to be a better way...
+      ))
+  (define (nsuf this-syntax stx)
+    (datum->syntax this-syntax (string->symbol (string-append (symbol->string (syntax->datum stx)) (next-name)))))
   (define-syntax-class sc-head
     (pattern [(~or* -name:id name-pat:sc-name-pat)
               count-spec:sc-count
               (~optional (~seq #:restrictions restriction:sc-restr))]
              #:attr name (if (attribute -name)
-                             #'-name
-                             #'name-pat.name-pattern)
+                             (nsuf this-syntax #'-name)  ; FIXME generate temporaries breaks referecing the syntax class later!?
+                             (nsuf this-syntax #'name-pat.name-pattern))
              #:attr sc-pat (if (attribute -name)
                                #f  ; FIXME sigh, what is the right tool for dealing with these...
                                #'(define-syntax-class name
@@ -105,6 +115,7 @@
     (pattern ([string-value:string predicate:id] ...))))
 
 (require syntax/parse
+         racket/syntax
          racket/pretty
          'derp
          (only-in racket/list flatten)
@@ -116,8 +127,24 @@
   #:literals (->?)  ; predicate from sibbling path value
   (pattern (~or* predicate:id
                  exact-value:string 
-                 exact-value:integer
-                 (->? subtree:sc-exact-pat)))
+                 exact-value:integer  ; FIXME when does this happen?!
+                 (->? subtree:sc-exact-pat))
+           #:with termsc (generate-temporary #'termsc)
+           ;#:attr predicate-name (if (attribute predicate) () #f)
+           #:attr name (cond [(attribute predicate) (generate-temporary #'predicate)]
+                             [(attribute exact-value) #'exact-value])
+           #:attr sc-pat (cond [(attribute predicate)
+                                #'(define-syntax-class termsc
+                                    (pattern runtime-value
+                                             #:fail-unless (λ () (predicate #'runtime-value))
+                                             (format "TODO ~a not a ~a" #'runtime-value (symbol->string predicate))
+                                             ))]
+                               ;[(attribute exact-value)
+                                ;#'(define-syntax-class terminal
+                                    ;(pattern runtime-value
+                                             ;#:fail-unless (λ () (eq? runtime-value exact-value))))]
+                               [else #'(i have no idea what is going on here)])
+           )
   ;(pattern predicate:id)
   ;(pattern (~or* exact-value:string exact-value:integer))  ; TODO consider allowing quote literals?
   ;(pattern (->? subtree:sc-exact-pat))  ; make the predicate at compile time?
@@ -141,24 +168,39 @@
            #:attr abody (attribute body)
            #:attr syntax-classes (if (not (null? (syntax->datum #'(body.syntax-classes ...))))
                                      (if (attribute head.sc-pat)
-                                         (flatten-dots #'(head.sc-pat body.syntax-classes ...) this-syntax)
-                                         (flatten-dots #'(body.syntax-classes ...) this-syntax)
-                                         )
+                                         (if (and (attribute terminal) (attribute terminal.predicate))
+                                             (flatten-dots #'(head.sc-pat body.syntax-classes ... terminal.sc-pat) this-syntax)
+                                             (flatten-dots #'(head.sc-pat body.syntax-classes ...) this-syntax))
+                                         (if (and (attribute terminal) (attribute terminal.predicate))
+                                             (flatten-dots #'(body.syntax-classes ... terminal.sc-pat) this-syntax)
+                                             (flatten-dots #'(body.syntax-classes ...) this-syntax)))
                                      (if (attribute head.sc-pat)
-                                         #'head.sc-pat
-                                         #'()
-                                         ;#f
-                                         ))
+                                         (if (and (attribute terminal) (attribute terminal.predicate))
+                                             #'(head.sc-pat terminal.sc-pat)
+                                             #'head.sc-pat)
+                                         (if (and (attribute terminal) (attribute terminal.predicate))
+                                             #'terminal.sc-pat
+                                             #'())))
            ;#:do [(println `(ct-body-sc: ,(attribute body.syntax-classes)))]
            #:attr head-convention #'[name head.name]
+           #:attr term-conventions (if (and (attribute terminal)
+                                            (attribute terminal.predicate))
+                                       #'[terminal.name terminal.termsc]
+                                       #'())
            #:attr local-conventions (if (attribute head.sc-pat)
-                                        (let ([thing #'([name head.name] body.head-convention ...)])
+                                        (let ([thing
+                                               (if (and (attribute terminal) (attribute terminal.predicate))
+                                                   #'([name head.name] body.head-convention ... term-conventions)
+                                                   #'([name head.name] body.head-convention ...))])
                                           ;(println `(halp: ,thing))
                                           thing)
-                                        (let ([blc (map flatten
-                                                        (filter (λ (thing) (not (null? thing)))
-                                                                (syntax->datum
-                                                                 #'(body.local-conventions ...))))])
+                                        (let ([blc
+                                               (map flatten
+                                                    (filter (λ (thing) (not (null? thing)))
+                                                            (syntax->datum
+                                                             (if (and (attribute terminal) (attribute terminal.predicate))
+                                                                 #'(body.local-conventions ... term-conventions)
+                                                                 #'(body.local-conventions ...)))))])
                                           ;(println `(wat: ,blc))
                                           (if (null? blc)
                                               #'()
@@ -192,7 +234,9 @@
                                 ;(pretty-print `(start-stop: ,start ,stop ,(attribute name)))
                                 (cond  ; FIXME terminal cond
                                   [(and start stop)
-                                   #`(#,(attribute name) body.head-racket ...)  ; FIXME terminals
+                                   (if (attribute terminal)
+                                       #`(#,(attribute name) body.head-racket ... terminal.name)
+                                       #`(#,(attribute name) body.head-racket ... ))  ; FIXME terminals
                                    ;#`(#,(attribute name) (body.name body.body ...) ...)  ; FIXME terminals
                                    ]
                                   [(and start (not stop))
@@ -200,12 +244,16 @@
                                                  [seq (datum->syntax this-syntax '~seq)])
                                      ; dont need seq since these should always be enclosed?
                                      ; but then how to we stick the elip on?
-                                     #`(seq (#,(attribute name) body.head-racket ...) elip+)
+                                     (if (attribute terminal)
+                                         #`(seq (#,(attribute name) body.head-racket ... terminal.name) elip+)
+                                         #`(seq (#,(attribute name) body.head-racket ...) elip+))
                                      ;#`(#,(attribute name) (body.name body.body ...) ... elip+)
                                      )
                                    ]
                                   [(and (not start) stop)
-                                   #`(~optional (#,(attribute name) body.head-racket ...))
+                                   (if (attribute terminal)
+                                       #`(~optional (#,(attribute name) body.head-racket ... terminal.name))
+                                       #`(~optional (#,(attribute name) body.head-racket ...)))
                                    ;#`(~optional (#,(attribute name) (body.name body.body ...) ...))
                                    ]
                                   [(and (not start) (not stop))
@@ -213,7 +261,9 @@
                                                  [opt (datum->syntax this-syntax '~optional)]
                                                  [seq (datum->syntax this-syntax '~seq)]
                                                  )
-                                     #`(opt (seq (#,(attribute name) body.head-racket ...) elip))
+                                     (if (attribute terminal)
+                                         #`(opt (seq (#,(attribute name) body.head-racket ... terminal.name) elip))
+                                         #`(opt (seq (#,(attribute name) body.head-racket ...) elip)))
                                      ;#`(~optional (~seq (#,(attribute name) (body.name body.head-racket ...) ...) elip))
                                      )
                                    ]
@@ -240,43 +290,54 @@
                             )
            #:attr stx-names (datum->syntax this-syntax (attribute names))
            #:attr test-name (if (attribute head.name)
-                                (λ (sxml)
+                                #'(λ (sxml) (eq? head.name (car sxml)))
+                                #;(λ (sxml)
                                   (println `(,(syntax->datum #'head.name) ,(car sxml)))
                                   (let ([out (eq? (syntax->datum #'head.name) (car sxml))])
                                     (println `(test-name: ,out))
                                     out)
                                   )
-                                (λ (sxml)
+                                #'(λ (sxml)
                                   ; TODO handle name-pat
-                                  #f)
+                                  #f
+                                  )
                                 )
            #:attr test-restr (if (attribute head.restriction)
                                  ; this needs more work at the syntax class level
-                                 (λ (sxml)
-                                   (if #t ;(eq? (car sxml) (attribute head.rest-name))
-                                       #t  ; TODO this one is a bit more tricky
-                                       #t))
-                                 (λ (sxml) #t)
+                                 #'(λ (sxml)
+                                     (if #t ;(eq? (car sxml) (attribute head.rest-name))
+                                         #t  ; TODO this one is a bit more tricky
+                                         #t))
+                                 #'(λ (sxml) #t)
                                  )
            #:attr test-body 'TODO  ; TODO
            #:attr test-term (if (attribute terminal)
                                 (if (attribute terminal.predicate)
-                                    (λ (value) ((attribute terminal.predicate) value))
+                                    #;(λ (value) ((attribute terminal.predicate) value))
+                                    #'(λ (value) (terminal.predicate value))
                                     (if (attribute terminal.exact-value)
-                                        (λ (value) (eq? value (attribute terminal.exact-value)))
+                                        #;(λ (value) (eq? value (attribute terminal.exact-value)))
+                                        #'(λ (value) (eq? value terminal.exact-value))
                                         (if (attribute terminal.subtree)
-                                            (λ (value) #f)  ; TODO
-                                            (raise-syntax-error 'wat "how did we get here!??!"))))
-                                (λ (sxml) #t)
+                                            #'(λ (value) #f)  ; TODO
+                                            #'(raise-syntax-error 'wat "how did we get here!??!"))))
+                                #'(λ (sxml) #t)
                                 )
-           #:attr test (λ (sxml)
+           #:attr test #'(λ (sxml)
+                           (and 
+                            (test-name sxml)
+                            (test-restr sxml)
+                            (test-term sxml))
+                           ) #;(λ (sxml)
                          ((attribute test-name) sxml)
                          ((attribute test-restr) sxml)
                          ((attribute test-term) sxml)  ; FIXME needs to test the terminal
                          )
            #:attr tests (if (attribute body)
-                            (cons (attribute test) (attribute body.tests))
-                            (list (attribute test)))
-           #:attr stx-tests (datum->syntax this-syntax (attribute tests))
+                            #'(λ (sxml) (and (test sxml) (body.test (cdr sxml)) ...))  ; TODO body.test body.value?
+                            #;(cons (attribute test) (attribute body.tests))
+                            #'test
+                            #;(list (attribute test)))
+           #:attr stx-tests #'tests #;(datum->syntax this-syntax (attribute tests))
            )
   )

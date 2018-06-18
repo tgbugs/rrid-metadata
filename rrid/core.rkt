@@ -57,6 +57,7 @@
         (~optional (~seq #:predicates predicate-let:sc-pred))
         (~optional (~seq #:string->predicate string-let:sc-string-pred))
         schema:sc-body)
+     (println '(am i here!?))
      (define BODY
        ; FIXME with-syntax* fails completely silently when not imported wtf
        (with-syntax* ([shead (attribute schema.head)]
@@ -89,7 +90,7 @@
      ;(pretty-print `(compile-time: ,(expand-once BODY)))
 
      ;(pretty-print `(ct-syntax-classes: ,(syntax->datum #'schema.syntax-classes)))
-     '(when (not-null? (syntax->datum #'schema.syntax-classes))
+     #;(when (not-null? (syntax->datum #'schema.syntax-classes))
        '(map (λ (datum) (println `(hrm: ,datum))
 
                (eval-syntax (datum->syntax this-syntax datum)))
@@ -105,7 +106,7 @@
            (list 'begin sc)
            (cons 'begin sc)))
 
-     (define S-BODY
+     #;(define S-BODY
        (let ([sc (syntax->datum (attribute schema.syntax-classes))])
          (if (attribute string-let)
              (if (not (null? sc))
@@ -121,6 +122,11 @@
                  ))
          ))
 
+     (define S-BODY
+       (with-syntax ([(syntax-class ...) #'schema.syntax-classes])
+         #`(begin syntax-class ... #,BODY)  ; lol so much cleaner...
+         ))
+
      ; FIXME gonna be a bit different using syntax, would have to use with-syntax
      ; or something like that
      (define P-BODY (if (attribute predicate-let)
@@ -130,8 +136,10 @@
                             #,S-BODY)
                         S-BODY))
 
+     (pretty-write `(ct-S-BODY: ,(syntax->datum S-BODY)))
      (pretty-write `(ct-P-BODY: ,(syntax->datum P-BODY)))
-     (pretty-write `(ct-MORE: ,(syntax->datum #'schema.test-name)))
+     ;(pretty-write `(ct-MORE: ,(syntax->datum #'schema.stx-tests)))  ; NOTE this is no longer needed
+     ;(pretty-write `(ct-MORE: ,(attribute schema.test-name)))
      P-BODY
      ]))
 
@@ -174,7 +182,7 @@
   )
 (module+ test 
 
-  #'(
+  #;(
   ;(sxml-schema ([tag 0]))  ; fails as expected
   ;(sxml-schema ([]) )
   ;((car (sxml-schema ([tag 1]))) '(tag))
@@ -211,12 +219,19 @@
                 "value"))
   )
   ;(sixth (schema-structure))
+  (sxml-schema #:name test-pred ([top 1] ([head (range 1 n)] string?)))
+  (test-pred '(top (head "anything") (head "anything2")))
+  (test-pred '(top (head "anything") (head 'not-a-string)))  ; FIXME this should fail
   (sxml-schema #:name test1 ([top 1] ([yeee (range 0 n)] "wat")))
-  (test1 '(top (yeee) (yeee)))  ; FIXME this is incorrect but succeeds
-  ;(test1 '(top (yeee "wat") (yeee "wat")))
+  ;(test1 '(top (yeee) (yeee)))  ; fails as expected
+  (test1 '(top (yeee "wat") (yeee "wat")))
   (sxml-schema #:name test2 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
-  (test2 '(a:* (b:*))) ; FIXME this should fail and the next should succeed
-  (test2 '(a:* (b:* "not wat")))
+  ;(test2 '(a:* (b:*))) ; fails as expected
+  ;(test2 '(a:* (b:* "not wat")))  ; fails as expected
+  (test2 '(a:* (b:* "wat")))
+  ;(test2 '(a:* (b:* "wat") (b:* "wat")))  ; fails as expected
+  (sxml-schema #:name test3 ([(pattern a:*) 1] ([(pattern b:*) (range 0 n)] "wat")))  ; test for duplicate pattern defs
+  (test3 '(a:* (b:* "wat") (b:* "wat")))
   #|
   (test2 '(a:* (b:* "wat")))
   (sxml-schema #:name thing ([TOP 1] ([asdf (range 0 n)] "hello there")))
@@ -305,7 +320,7 @@ structure validation syntax
      '("Material" "Software" "Service")
      '("IsCompiledBy" "IsIdenticalTo" "IsDerivedFrom")
      '("en-US")))
-  '(sxml-schema
+  (sxml-schema
   #:predicates ([related-identifier-type? (λ (value) (member value '("URL" "DOI")))]
                 [resource-type-general? (λ (value) (member value resource-type-generals))]
                 [relation-type? (λ (value) (member value relation-types))]
@@ -689,4 +704,4 @@ structure validation syntax
                             #:insert_time 1111111111
                             #:curate_time 1222222222
                             #:something "We need this for the proper citation")))
-  '(check-schema rec))
+  (check-schema (schema-structure) rec))
