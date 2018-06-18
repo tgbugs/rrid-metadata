@@ -57,7 +57,6 @@
         (~optional (~seq #:predicates predicate-let:sc-pred))
         (~optional (~seq #:string->predicate string-let:sc-string-pred))
         schema:sc-body)
-     (println '(am i here!?))
      (define BODY
        ; FIXME with-syntax* fails completely silently when not imported wtf
        (with-syntax* ([shead (attribute schema.head)]
@@ -84,43 +83,12 @@
                checker
                sxml))
        ))
-     ;(pretty-print `(compile-time: ,(cadr (syntax->datum BODY))))
-     (pretty-print `(ct-BODY: ,(syntax->datum BODY)))
-     ;(pretty-print `(compile-time: ,(syntax->datum (expand-once BODY))))
-     ;(pretty-print `(compile-time: ,(expand-once BODY)))
+     ;(pretty-print `(ct-BODY: ,(syntax->datum BODY)))
 
-     ;(pretty-print `(ct-syntax-classes: ,(syntax->datum #'schema.syntax-classes)))
-     #;(when (not-null? (syntax->datum #'schema.syntax-classes))
-       '(map (λ (datum) (println `(hrm: ,datum))
-
-               (eval-syntax (datum->syntax this-syntax datum)))
-            (syntax->datum #'schema.syntax-classes))
-       (map (λ (datum) (eval-syntax (datum->syntax this-syntax datum) this-ns))
-            (syntax->datum #'schema.syntax-classes))
-       )
-
-     ;(println this-ns)
-     ;(println (namespace-mapped-symbols this-ns))
      (define (normalize-sc sc)
        (if (eq? (car sc) 'define-syntax-class)
            (list 'begin sc)
            (cons 'begin sc)))
-
-     #;(define S-BODY
-       (let ([sc (syntax->datum (attribute schema.syntax-classes))])
-         (if (attribute string-let)
-             (if (not (null? sc))
-                 #`(begin
-                     #,(datum->syntax this-syntax (normalize-sc sc))
-                     #,BODY)
-                 #`(begin #,BODY)
-                 )
-             ;(if (attribute schema.syntax-classes)
-             (if (not (null? sc))
-                 #`(begin #,(datum->syntax this-syntax (normalize-sc sc)) #,BODY)
-                 BODY
-                 ))
-         ))
 
      (define S-BODY
        (with-syntax ([(syntax-class ...) #'schema.syntax-classes])
@@ -136,8 +104,8 @@
                             #,S-BODY)
                         S-BODY))
 
-     (pretty-write `(ct-S-BODY: ,(syntax->datum S-BODY)))
-     (pretty-write `(ct-P-BODY: ,(syntax->datum P-BODY)))
+     ;(pretty-write `(ct-S-BODY: ,(syntax->datum S-BODY)))
+     ;(pretty-write `(ct-P-BODY: ,(syntax->datum P-BODY)))
      ;(pretty-write `(ct-MORE: ,(syntax->datum #'schema.stx-tests)))  ; NOTE this is no longer needed
      ;(pretty-write `(ct-MORE: ,(attribute schema.test-name)))
      P-BODY
@@ -228,6 +196,8 @@
   (sxml-schema #:name test2 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
   ;(test2 '(a:* (b:*))) ; fails as expected
   ;(test2 '(a:* (b:* "not wat")))  ; fails as expected
+  (test2 '(should (fail "wat")))
+  ;(test2 '(should (fail "and does")))
   (test2 '(a:* (b:* "wat")))
   ;(test2 '(a:* (b:* "wat") (b:* "wat")))  ; fails as expected
   (sxml-schema #:name test3 ([(pattern a:*) 1] ([(pattern b:*) (range 0 n)] "wat")))  ; test for duplicate pattern defs
@@ -239,6 +209,35 @@
                                                ([(pattern *body2) (range 0 n)] "general nobody")
                                                null))
   |#
+
+  (define-syntax-class
+    a:*
+    (pattern
+     runtime-name:id
+     #:fail-when #;(λ () (println 'hello!) #t)
+     (λ ()
+       (let* ((p-s (string-split (symbol->string #'runtime-name) "*" #:trim? #f))
+              (p (car p-s))
+              (s (cadr p-s)))
+         (and (string-prefix? (attribute runtime-name) p)
+              (string-suffix? (attribute runtime-name) s))))
+     "Failed to match pattern"))
+  (define-syntax-class
+    b:*
+    (pattern
+     runtime-name:id
+     #:fail-when #;(λ () (println 'hello!) #t)
+     (λ ()
+       ;(printf '(why isnt this working?))
+       (let* ((p-s (string-split (symbol->string #'runtime-name) "*" #:trim? #f))
+              (p (car p-s))
+              (s (cadr p-s)))
+         (and (string-prefix? (attribute runtime-name) p)
+              (string-suffix? (attribute runtime-name) s))))
+     (format "Failed to match pattern ~a" #'runtime-name)))
+  (syntax-parse #'(a:* (b:* "wat")) #:local-conventions ((a a:*) (b b:*)) [(a (b "wat")) "this should fail"])
+  (syntax-parse #'(should2 (fail2 "wat")) #:local-conventions ((a a:*) (b b:*)) [(a (b "wat")) "this should fail"])
+  (syntax-parse #'(a:hello (b:world "wat")) #:local-conventions ((a a:*) (b b:*)) [(a (b "wat")) "this should fail"])
 )
 
 ;; utility
@@ -320,7 +319,7 @@ structure validation syntax
      '("Material" "Software" "Service")
      '("IsCompiledBy" "IsIdenticalTo" "IsDerivedFrom")
      '("en-US")))
-  (sxml-schema
+  '(sxml-schema
   #:predicates ([related-identifier-type? (λ (value) (member value '("URL" "DOI")))]
                 [resource-type-general? (λ (value) (member value resource-type-generals))]
                 [relation-type? (λ (value) (member value relation-types))]
@@ -396,7 +395,7 @@ structure validation syntax
       ;(value->predicate (@ (relatedIdentifierType _)))))))
 ))
 
-(define ss (schema-structure))
+;(define ss (schema-structure))
 
 (define (check-schema schema sxml)
   (define (check-subtree sub-structure sub-sxml [current null])
@@ -704,4 +703,4 @@ structure validation syntax
                             #:insert_time 1111111111
                             #:curate_time 1222222222
                             #:something "We need this for the proper citation")))
-  (check-schema (schema-structure) rec))
+  #;(check-schema (schema-structure) rec))

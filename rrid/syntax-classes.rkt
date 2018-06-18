@@ -85,16 +85,20 @@
               count-spec:sc-count
               (~optional (~seq #:restrictions restriction:sc-restr))]
              #:attr name (if (attribute -name)
-                             (nsuf this-syntax #'-name)  ; FIXME generate temporaries breaks referecing the syntax class later!?
+                             (nsuf this-syntax #'-name)
                              (nsuf this-syntax #'name-pat.name-pattern))
+             #:attr match (if (attribute -name)
+                              #'-name
+                              #'name-pat.name-pattern)
              #:attr sc-pat (if (attribute -name)
                                #f  ; FIXME sigh, what is the right tool for dealing with these...
                                #'(define-syntax-class name
                                    (pattern runtime-name:id
                                             #:fail-unless (λ ()
-                                                            (let* ([p-s (string-split (symbol->string 'name) "*" #:trim? #f)]
+                                                            (let* ([p-s (string-split (symbol->string 'match) "*" #:trim? #f)]
                                                                    [p (car p-s)]
                                                                    [s (cadr p-s)])
+                                                              (println '(why isnt this working?))
                                                               (and (string-prefix? #'runtime-name p)
                                                                    (string-suffix? #'runtime-name s))))
                                             "Failed to match pattern"  ; TODO better error messaging
@@ -232,11 +236,11 @@
                                                  [(= -stop 1) #t]
                                                  [#t (raise-syntax-error 'hrm "HRM allow not 1 or n?")])])
                                 ;(pretty-print `(start-stop: ,start ,stop ,(attribute name)))
-                                (cond  ; FIXME terminal cond
+                                (cond  ; FIXME restriction? no, it should just to in the checker...
                                   [(and start stop)
                                    (if (attribute terminal)
-                                       #`(#,(attribute name) body.head-racket ... terminal.name)
-                                       #`(#,(attribute name) body.head-racket ... ))  ; FIXME terminals
+                                       #`(name body.head-racket ... terminal.name)
+                                       #`(name body.head-racket ... ))  ; FIXME terminals
                                    ;#`(#,(attribute name) (body.name body.body ...) ...)  ; FIXME terminals
                                    ]
                                   [(and start (not stop))
@@ -245,15 +249,15 @@
                                      ; dont need seq since these should always be enclosed?
                                      ; but then how to we stick the elip on?
                                      (if (attribute terminal)
-                                         #`(seq (#,(attribute name) body.head-racket ... terminal.name) elip+)
-                                         #`(seq (#,(attribute name) body.head-racket ...) elip+))
+                                         #`(seq (name body.head-racket ... terminal.name) elip+)
+                                         #`(seq (name body.head-racket ...) elip+))
                                      ;#`(#,(attribute name) (body.name body.body ...) ... elip+)
                                      )
                                    ]
                                   [(and (not start) stop)
                                    (if (attribute terminal)
-                                       #`(~optional (#,(attribute name) body.head-racket ... terminal.name))
-                                       #`(~optional (#,(attribute name) body.head-racket ...)))
+                                       #`(~optional (name body.head-racket ... terminal.name))
+                                       #`(~optional (name body.head-racket ...)))
                                    ;#`(~optional (#,(attribute name) (body.name body.body ...) ...))
                                    ]
                                   [(and (not start) (not stop))
