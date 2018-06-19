@@ -69,40 +69,57 @@
                                    ;schema.abody ...  annoying that this does not work
                                    ;schema.body ...
                                    ;sbody
-                                  ;sbody.sc-pat ...
-                                  ;schema.-sc-pat ... ; FIXME annoying that the way this is done can't use ...
-                                  (syntax-parse stx-sxml
-                                    ;#:literals schema.literals  ; we don't actually want this fix the pattern issue
-                                    #:local-conventions schema.local-conventions
-                                    [schema.racket  ; just validate, there may be better ways
-                                     stx-sxml]))]
-                      )
-           (if (list? (car (syntax->datum #'schema.syntax-classes)))
+                                   ;sbody.sc-pat ...
+                                   ;schema.-sc-pat ... ; FIXME annoying that the way this is done can't use ...
+                                   (syntax-parse stx-sxml
+                                     ;#:literals schema.literals  ; we don't actually want this fix the pattern issue
+                                     #:local-conventions schema.local-conventions
+                                     [schema.racket  ; just validate, there may be better ways
+                                      stx-sxml]))])
+
+         (if (attribute syntax-name)
+             #'(define (syntax-name sxml)
+                 syntax-class ...
+                 checker
+                 sxml)
+             #'(λ (sxml)
+                 syntax-class ...
+                 checker
+                 sxml))
+         #;(if (list? (car (syntax->datum #'schema.syntax-classes)))
                (if (attribute syntax-name)
-                   #'(define (syntax-name sxml)
-                       syntax-class ...
-                       checker
-                       sxml)
+                   #'(begin
+                       (begin
+                         syntax-class ...)
+                       (define (syntax-name sxml)
+                         checker
+                         sxml)
+                       )
                    #'(λ (sxml)
                        syntax-class ...
                        checker
                        sxml))
-               (if (attribute syntax-name)
-                   #'(define (syntax-name sxml)
-                       schema.syntax-classes
-                       checker
-                       sxml)
-                   #'(λ (sxml)
-                       schema.syntax-classes
-                       checker
-                       sxml)))
+               "this should never happen now?"
+               #;(if (attribute syntax-name)
+                     #'(define (syntax-name sxml)
+                         schema.syntax-classes
+                         checker
+                         sxml)
+                     #'(λ (sxml)
+                         schema.syntax-classes
+                         checker
+                         sxml)))
        ))
      ;(pretty-print `(ct-BODY: ,(syntax->datum BODY)))
 
-     (define (normalize-sc sc)
+     #;(define (normalize-sc sc)
        (if (eq? (car sc) 'define-syntax-class)
            (list 'begin sc)
            (cons 'begin sc)))
+
+     #;(define S-BODY
+       (with-syntax ([(syntax-class ...) #'schema.syntax-classes])
+         #`(begin syntax-class ... #,BODY) ))
 
      #;(define S-BODY
        ;(println `(ct-classes: ,(syntax->datum #'schema.syntax-classes)))
@@ -168,22 +185,26 @@
   (aaa '(top (yeee)))
   )
 
-(module+ test
+
+#;(module+ test 
+  (sxml-schema #:name test2 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
+  ;(test2 '(a:* (b:* "nope")))
+  (test2 '(a:hello (b:there "wat")))
+  )
+(module+ test 
   (sxml-schema #:name deep-nesting ([a 1] ([b 1] ([c 1] ([d 1] ([e 1] ([f 1] "g")
                                                                       ([x 1] string?)
-                                                                      ([h 1] "i"))))))))
-#;(module+ test 
-
+                                                                      ([h 1] "i")))))))
   ;(sxml-schema ())  ; fails as expected
   ;(sxml-schema ([]))  ; fails as expected
   ;(sxml-schema ([tag]))  ; fails as expected
   ;(sxml-schema ([tag 0]))  ; fails as expected
   ((sxml-schema ([tag 1])) '(tag))
-  ((sxml-schema ([tag 1])) '(not-tag))  ; FIXME this should fail!
+  ;((sxml-schema ([tag 1])) '(not-tag))  ; fails as expected
   ((sxml-schema ([tag 1] 0)) '(tag 0))
   ;((sxml-schema ([tag 1] 0)) '(tag))  ; fails as expected
   ((sxml-schema ([tag 1] "")) '(tag ""))
-  (sxml-schema ([tag 1] ([tag2 1] 0) 0))
+  ((sxml-schema ([tag 1] ([tag2 1] 0) 0)) '(tag (tag2 0) 0))
   ;(sxml-schema ([tag 1] ([tag2 (range 0 1)] 0) 0))  ; TODO FIXME ~optional complaint!?
 
   #;(

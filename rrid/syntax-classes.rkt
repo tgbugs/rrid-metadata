@@ -78,44 +78,58 @@
     (let-values ([(n m) (quotient/remainder count 26)]  ; FIXME why doesn't the error here give a line number :/
            )
       (set! count (add1 count))
-      (list->string (build-list (add1 n) (λ (blank) (integer->char (+ 97 m)))))  ; FIXME there has to be a better way...
-      ))
+      ; FIXME there has to be a better way...
+      (list->string (build-list (add1 n) (λ (blank) (integer->char (+ 97 m)))))))
   (define (nsuf this-syntax stx)
     (datum->syntax this-syntax (string->symbol (string-append (symbol->string (syntax->datum stx)) (next-name)))))
   (define (syntax-string-prefix? stx-str pref-str)
-    (string-prefix? (symbol->string (syntax->datum #'runtime-name)) pref-str))
+    (string-prefix? (symbol->string (syntax->datum stx-str)) pref-str))
   (define (syntax-string-suffix? stx-str suff-str)
-    (string-suffix? (symbol->string (syntax->datum #'runtime-name)) suff-str))
+    (string-suffix? (symbol->string (syntax->datum stx-str)) suff-str))
 
   (define-syntax-class sc-head
-    (pattern [(~or* -name:id name-pat:sc-name-pat)
-              count-spec:sc-count
-              (~optional (~seq #:restrictions restriction:sc-restr))]
+    #:disable-colon-notation
+    #:local-conventions ([runtime-name id]
+                         [-name id]
+                         [name-pat sc-name-pat]
+                         [count-spec sc-count]
+                         [restriction sc-restr])
+    (pattern [(~or* -name name-pat)
+              count-spec
+              (~optional (~seq #:restrictions restriction))]
+             #:with internal-name (generate-temporary 'internal-name)  ; we need this so we can still use colon notation
              #:attr name (if (attribute -name)
                              (nsuf this-syntax #'-name)
+                             ;(generate-temporary 'internal-name-pattern)
                              (nsuf this-syntax #'name-pat.name-pattern))
              #:attr match (if (attribute -name)
                               #'-name
-                              #'name-pat.name-pattern)
+                              #'internal-name  ; no colons in the internal names
+                              ;#'name-pat.name-pattern
+                              )
              #:attr sc-pat (if (attribute -name)
                                #'(define-syntax-class name
-                                   (pattern runtime-name:id
-                                            #:do [(unless (eq? 'match #'runtime-name)
+                                   #:disable-colon-notation
+                                   (pattern runtime-name
+                                            #:do [(unless (eq? 'match (syntax->datum #'runtime-name))
                                                     (raise-syntax-error 'bad-structure
                                                                         (format "expected ~a got ~a"
                                                                                 'match
-                                                                                (syntax->datum #'runtime-name)))
-                                                    )]))
+                                                                                (syntax->datum #'runtime-name))))]))
                                #'(define-syntax-class name
-                                   (pattern runtime-name:id
-                                            #:do [(let* ([p-s (string-split (symbol->string 'match) "*" #:trim? #f)]
+                                   #:disable-colon-notation
+                                   (pattern runtime-name
+                                            #:do [(let* ([p-s (string-split (symbol->string 'name-pat.name-pattern) "*" #:trim? #f)]
                                                          [p (car p-s)]
                                                          [s (cadr p-s)])
                                                     (unless (and (syntax-string-prefix? #'runtime-name p)
                                                                  (syntax-string-suffix? #'runtime-name s))
+                                                      (println (list 'failtime: p-s p s #'runtime-name
+                                                                     (syntax-string-prefix? #'runtime-name p)
+                                                                     (syntax-string-suffix? #'runtime-name s)))
                                                       (raise-syntax-error 'bad-structure
                                                                           (format "expected ~a got ~a"
-                                                                                  'match
+                                                                                  'name-pat.name-pattern
                                                                                   (syntax->datum #'runtime-name)))))])))
              #:attr start #'count-spec.start
              #:attr stop #'count-spec.stop
@@ -144,6 +158,11 @@
 
 (define-syntax-class sc-terminal
   #:literals (->?)  ; predicate from sibbling path value
+  ;#:local-conventions
+  #;([predicate id]
+     [exact-value string]
+     [exact-value integer]
+     [subtree sc-exact-pat])
   (pattern (~or* predicate:id
                  exact-value:string 
                  exact-value:integer  ; FIXME when does this happen?!
@@ -212,9 +231,9 @@
                                      (if (attribute head.sc-pat)
                                          (if (and (attribute terminal) (attribute terminal.predicate))
                                              #'(head.sc-pat terminal.sc-pat)
-                                             #'head.sc-pat)
+                                             #'[head.sc-pat])
                                          (if (and (attribute terminal) (attribute terminal.predicate))
-                                             #'terminal.sc-pat
+                                             #'[terminal.sc-pat]
                                              #'())))
            ;#:do [(println `(ct-body-sc: ,(attribute body.syntax-classes)))]
            #:attr head-convention #'([head.match head.name])
@@ -258,8 +277,8 @@
                                                   (apply append ;map (λ(n)n);flatten
                                                        (filter (λ (thing) (not (null? thing)))
                                                                (syntax->datum
-                                                                #;#'(head-convention body-conventions term-convention)
-                                                                (if (and (attribute terminal) (attribute terminal.predicate))
+                                                                #'(head-convention body.local-conventions ... term-convention)
+                                                                #;(if (and (attribute terminal) (attribute terminal.predicate))
                                                                     #'(head-convention body.local-conventions ... term-convention)
                                                                     #'(head-convention body.local-conventions ...)))))])
                                              (if (null? body-datum)
