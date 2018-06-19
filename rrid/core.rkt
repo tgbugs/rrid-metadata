@@ -24,21 +24,7 @@
     [(_bind variable-stx)
      #'(quasiquote (variable-stx ,variable-stx))]))
 
-;(require (for-meta -2 (only-in racket/list range)))
-;(require syntax/parse
-             ;(only-in racket/list range)
-             ;(for-syntax (only-in racket/list range))
-             ;(for-template (only-in racket/list range))
-             ;(for-meta -2 (only-in racket/list range))
-             ;)
-
-
-;(require (for-template (only-in racket/list range))
-;(for-syntax (only-in racket/list range)))
-
-;(pred-let->functions )
-
-(define (->? stx case-statements)
+#;(define (->? stx case-statements)
   (syntax-parse stx
     [(_ compile-time-subtree-pattern)
     ;subtree->predicate
@@ -61,22 +47,14 @@
      (define BODY
        ; FIXME with-syntax* fails completely silently when not imported wtf
        (with-syntax* ([shead (attribute schema.head)]
-                      ;[sc-pat (attribute schema.sc-pat)]
-                      ;[sc-pat (attribute sbody.-sc-pat)]
-                      ;[sbody (attribute schema.body)]
                       [(syntax-class ...) #'schema.syntax-classes]
                       [checker #'(let ([stx-sxml (datum->syntax #f sxml)])  ; vs with-syntax?
-                                   ;schema.abody ...  annoying that this does not work
-                                   ;schema.body ...
-                                   ;sbody
-                                   ;sbody.sc-pat ...
-                                   ;schema.-sc-pat ... ; FIXME annoying that the way this is done can't use ...
                                    (syntax-parse stx-sxml
+                                     #:disable-colon-notation
                                      ;#:literals schema.literals  ; we don't actually want this fix the pattern issue
                                      #:local-conventions schema.local-conventions
                                      [schema.racket  ; just validate, there may be better ways
                                       stx-sxml]))])
-
          (if (attribute syntax-name)
              #'(define (syntax-name sxml)
                  syntax-class ...
@@ -85,54 +63,12 @@
              #'(λ (sxml)
                  syntax-class ...
                  checker
-                 sxml))
-         #;(if (list? (car (syntax->datum #'schema.syntax-classes)))
-               (if (attribute syntax-name)
-                   #'(begin
-                       (begin
-                         syntax-class ...)
-                       (define (syntax-name sxml)
-                         checker
-                         sxml)
-                       )
-                   #'(λ (sxml)
-                       syntax-class ...
-                       checker
-                       sxml))
-               "this should never happen now?"
-               #;(if (attribute syntax-name)
-                     #'(define (syntax-name sxml)
-                         schema.syntax-classes
-                         checker
-                         sxml)
-                     #'(λ (sxml)
-                         schema.syntax-classes
-                         checker
-                         sxml)))
-       ))
+                 sxml))))
+
      ;(pretty-print `(ct-BODY: ,(syntax->datum BODY)))
-
-     #;(define (normalize-sc sc)
-       (if (eq? (car sc) 'define-syntax-class)
-           (list 'begin sc)
-           (cons 'begin sc)))
-
-     #;(define S-BODY
-       (with-syntax ([(syntax-class ...) #'schema.syntax-classes])
-         #`(begin syntax-class ... #,BODY) ))
-
-     #;(define S-BODY
-       ;(println `(ct-classes: ,(syntax->datum #'schema.syntax-classes)))
-       (if (list? (car (syntax->datum #'schema.syntax-classes)))
-           (with-syntax ([(syntax-class ...) #'schema.syntax-classes])
-             #`(begin syntax-class ... #,BODY) )
-           #`(schema.syntax-classes #,BODY))  ; lol so much cleaner...
-         )
 
      (define S-BODY BODY)
 
-     ; FIXME gonna be a bit different using syntax, would have to use with-syntax
-     ; or something like that
      (define P-BODY (if (attribute predicate-let)
                         #`(let predicate-let
                               ; TODO string-let
@@ -142,7 +78,6 @@
 
      ;(pretty-write `(ct-S-BODY: ,(syntax->datum S-BODY)))
      (pretty-write `(ct-P-BODY: ,(syntax->datum P-BODY)))
-     ;(pretty-write `(ct-MORE: ,(syntax->datum #'schema.stx-tests)))  ; NOTE this is no longer needed
      ;(pretty-write `(ct-MORE: ,(attribute schema.test-name)))
      P-BODY
      ]))
@@ -155,70 +90,54 @@
 ;([@ (range 0 1)]
     ;([*NAMESPACES* (range 0 1)]
      ;([(pattern *) (range 0 n)] uri?)))
-(define asdfasdf '(hello))
-#;(module+ test  ; this is garbage now...
-
-  (define (wat sxml)
-    (let ((stx-sxml (datum->syntax #f sxml)))
-      (syntax-parse stx-sxml
-        ;#:literals (pattern a:* pattern b:*)  ; FIXME need to unique it as well and get rid of patterns
-        [(a (b "c") ...)
-         stx-sxml]))
-    ; maybe return #t if all good?
-    ; we error on not good so that help
-    sxml)
-
-  (wat '(a (b "c") (b "c")))
-  ; (wat '(a (b "e"))) fails as expected
-  (define (thing2 sxml)
-    (let ((stx-sxml (datum->syntax #f sxml)))
-      (syntax-parse stx-sxml
-        ((TOP (~optional (~seq (asdf) ...))) stx-sxml)))
-    sxml)
-  (thing2 '(TOP))
-  (thing2 '(TOP (asdf) (asdf)))
-  (define (aaa sxml)
-    (let ((stx-sxml (datum->syntax #f sxml)))
-      (syntax-parse stx-sxml ((top (~optional (~seq (yeee) ...))) stx-sxml)))
-    sxml)
-  (aaa '(top))
-  (aaa '(top (yeee)))
-  )
-
 
 #;(module+ test 
   (sxml-schema #:name test2 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
   ;(test2 '(a:* (b:* "nope")))
   (test2 '(a:hello (b:there "wat")))
   )
+
+(require syntax/macro-testing)
+(define-syntax (test-negative stx)
+  (syntax-parse stx
+    [(_ inner-stx)
+     #'(with-handlers ([exn:fail:syntax? (λ (e) "OK syntax")]
+                       [exn:fail? (λ (e) "OK fail")]
+                       ;[exn? (λ (e) "OK")]
+                       )
+         (convert-syntax-error inner-stx)
+         ;(raise-type-error 'negative-failed "negative syntax check passed when it should have failed")
+         #f)]))
+(define (assert thing)
+  (unless thing
+    (raise-result-error 'assertion-fail "#t" thing)))
 (module+ test 
   (sxml-schema #:name deep-nesting ([a 1] ([b 1] ([c 1] ([d 1] ([e 1] ([f 1] "g")
                                                                       ([x 1] string?)
                                                                       ([h 1] "i")))))))
-  ;(sxml-schema ())  ; fails as expected
-  ;(sxml-schema ([]))  ; fails as expected
-  ;(sxml-schema ([tag]))  ; fails as expected
-  ;(sxml-schema ([tag 0]))  ; fails as expected
+  (test-negative (assert (test-negative (sxml-schema ([tag 1])))))  ; ah the old doulb test negative... will still break silently
+  (assert (test-negative (sxml-schema ())))
+  (assert (test-negative (sxml-schema ([]))))
+  (assert (test-negative (sxml-schema ([tag]))))
+  (assert (test-negative (sxml-schema ([tag 0]))))
+  (assert (test-negative (sxml-schema ([tag (range 0 1)]))))
   ((sxml-schema ([tag 1])) '(tag))
-  ;((sxml-schema ([tag 1])) '(not-tag))  ; fails as expected
+  (assert (test-negative ((sxml-schema ([tag 1])) '(not-tag))))  ; fails as expected
   ((sxml-schema ([tag 1] 0)) '(tag 0))
-  ;((sxml-schema ([tag 1] 0)) '(tag))  ; fails as expected
+  (assert (test-negative ((sxml-schema ([tag 1] 0)) '(tag))))  ; fails as expected
   ((sxml-schema ([tag 1] "")) '(tag ""))
   ((sxml-schema ([tag 1] ([tag2 1] 0) 0)) '(tag (tag2 0) 0))
-  ;(sxml-schema ([tag 1] ([tag2 (range 0 1)] 0) 0))  ; TODO FIXME ~optional complaint!?
+  (sxml-schema ([tag 1] ([tag2 (range 0 1)] 0) 0))
+  (assert (test-negative (sxml-schema ([tag 1] 0 ""))))  ; fails as expected
+  (assert (test-negative (sxml-schema ([tag 1] "" 0))))  ; fails as expected
 
-  #;(
-  ;(procedure-arity (car (sxml-schema ([tag 1] 0))))
-  ;((car (sxml-schema ([tag 1] 0))) '(tag))
-  ;((car (sxml-schema ([tag 1] 0))) '(0))
-  (sxml-schema ([tag 1] ([tag2 1 #:restrictions ([(tag3 _) 1])] ([tag3 (range 0 n)] string?))))  ; FIXME what was the _ supposed to be?
-  ;(sxml-schema ([tag 1] 0 ""))  ; fails as expected
-  ;(sxml-schema ([tag 1] "" 0))  ; fails as expected
-  (sxml-schema ([tag 1] ([tag2 (range 0 1)] pred2?) pred1?))
-  (sxml-schema ([tag 1] ([tag2 (range 0 1)] ([tag3 1] pred3?) "ok") pred1?))
-  (sxml-schema ([tag 1] ([tag2 (range 0 1)] ([tag3 1] pred3?)) pred1?))
   ;(sxml-schema ([tag 1] '0))  ; TODO do we want to allow this?
-  ;(sxml-schema ([(pattern1 prefix:*) 1]))  ; fails as expected
+  #;((sxml-schema ([tag 1] list?))
+   '(tag (wat if this works i will eat my hat)))  ; FIXME weird error, but sudden insight into how to compose these schemas! just turn a validator into a predicate and stick it in #:predicates and boom, you can compose to your hearts content
+  (sxml-schema ([tag 1] ([tag2 (range 0 1)] string?) integer?))
+  (sxml-schema ([tag 1] ([tag2 (range 0 1)] ([tag3 1] symbol?) "ok") string?))
+  (sxml-schema ([tag 1] ([tag2 (range 0 1)] ([tag3 1] symbol?)) string?))
+  (assert (test-negative (sxml-schema ([(pattern1 prefix:*) 1]))))  ; fails as expected
   (sxml-schema ([(pattern prefix:*) 1]))
   (sxml-schema ([*TOP* 1]
                 ([@ (range 0 1)]
@@ -226,36 +145,48 @@
   (sxml-schema
    #:predicates ([predicate? (λ (value) #t)]
                  [my-string? string?])
-   #:string->predicate (["myType" my-type?])
-   ([tag 1]))
+   #:string->predicate (["myType" my-string?])
+   ([tag 1] ([a 1] predicate?) ([b (range 0 n)] my-string?) my-string?))
   (sxml-schema ([tag 1] "value"))
   (sxml-schema ([tag 1] ([tag2 (range 0 1)] "value2") "value"))
-  (sxml-schema ([tag 1]
-                ([tag2 (range 0 1)] "value2")
-                ([tag3 (range 0 n)] predicate?)
-                "value"))
-   )
+  (sxml-schema
+   #:predicates ([predicate? (λ (value) #t)])
+   ([tag 1]
+    ([tag2 (range 0 1)] "value2")
+    ([tag3 (range 0 n)] predicate?)
+    "value"))
 
-  ;(sixth (schema-structure))
+  (assert (test-negative (sxml-schema #:string->predicate (["thing" thing?]) ([t1 1] ([t2 1] thing?)))))
+
   (sxml-schema #:name test-pred ([top 1] ([head (range 1 n)] string?)))
   (test-pred '(top (head "anything") (head "anything2")))
-  ;(test-pred '(top (head "anything") (head 'not-a-string)))  ; fails as expected
+  (assert (test-negative (test-pred '(top (head "anything") (head 'not-a-string)))))  ; fails as expected
   (sxml-schema #:name test1 ([top 1] ([yeee (range 0 n)] "wat")))
-  ;(test1 '(top (yeee) (yeee)))  ; fails as expected
+  (assert (test-negative (test1 '(top (yeee) (yeee)))))  ; fails as expected
   (test1 '(top (yeee "wat") (yeee "wat")))
   (sxml-schema #:name test2 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
-  ;(test2 '(a:* (b:*))) ; fails as expected
-  ;(test2 '(a:* (b:* "not wat")))  ; fails as expected
-  ;(test2 '(should (fail "wat")))  ; fails as expected
-  ;(test2 '(should (fail "and does")))
+  (assert (test-negative (test2 '(a:* (b:*))))) ; fails as expected
+  (assert (test-negative (test2 '(a:* (b:* "not wat")))))  ; fails as expected
+  (assert (test-negative (test2 '(should (fail "wat")))))  ; fails as expected
+  (assert (test-negative (test2 '(should (fail "and does")))))
   (test2 '(a:* (b:* "wat")))
-  ;(test2 '(a:* (b:* "wat") (b:* "wat")))  ; fails as expected
+  (assert (test-negative (test2 '(a:* (b:* "wat") (b:* "wat")))))  ; fails as expected
   (sxml-schema #:name test3 ([(pattern a:*) 1] ([(pattern b:*) (range 0 n)] "wat")))  ; test for duplicate pattern defs
   (test3 '(a:* (b:* "wat") (b:* "wat")))
   (test3 '(a:hello (b:there "wat")))
-  ;(test3 '(b:hello (a:there "wat"))) ; failes as expected
-
+  (assert (test-negative (test3 '(b:hello (a:there "wat"))))) ; failes as expected
   (sxml-schema #:name thing ([TOP 1] ([asdf (range 0 n)] "hello there")))
+
+  ((sxml-schema ([tag 1] ([tag2 1 #:restrictions ([(tag3 _) 1])]  ; _ says that we don't care what tag3 says about itself we require 1
+                          ; FIXME currently we can't define a tag once and use it by name in many different places...
+                          ; basically defining reusable subtrees as with how we work with predicates
+                          ([tag3 (range 0 n)] string?))))
+   ;'(tag (tag2 (tag3 "stuff")))  ; ok
+   ;'(tag (tag2 (tag3 "stuff") (tag3 "stuff")))  ; FIXME should fail? since we can spec range restrictions and this is exact?
+   ;'(tag (tag2 "fails"))  ; fails as expected
+   ; FIXME should fail
+   '(tag (tag2)))
+
   ; FIXME I think we want this to translate into (~or* (~optional 1) (~optional 2)) ...
   (sxml-schema #:name multi-body-test ([TOP 1] ([(pattern *body1) (range 0 n)] "hello there")
                                                ([(pattern *body2) (range 0 n)] "general nobody")
@@ -326,6 +257,7 @@
 ;(define-syntax-parser #%node-spec
   ;[(_ a b c)])
 
+(require (only-in srfi/19 string->date))
 (define (schema-structure) ;(define-schema-structure  ; TODO hrm...
 #|
 structure validation syntax
@@ -340,85 +272,89 @@ structure validation syntax
     int>prev-or-n : INTEGER | n  ; must test INTEGER > 0-1
     child-is-pred : racket-predicate  ; must test explicitly whether absense is valid in context
 |#
-  (define-values (resource-type-generals relation-types xml-langs)
+  (define-values (resource-type-generals relation-types xml-langs hit-the-database check-remote)
     (values  ; TODO pull these out
      '("Material" "Software" "Service")
      '("IsCompiledBy" "IsIdenticalTo" "IsDerivedFrom")
-     '("en-US")))
-  '(sxml-schema
-  #:predicates ([related-identifier-type? (λ (value) (member value '("URL" "DOI")))]
-                [resource-type-general? (λ (value) (member value resource-type-generals))]
-                [relation-type? (λ (value) (member value relation-types))]
-                [date-type? (λ (value) (member value '("Submitted" "Updated")))]
-                [xml-lang? (λ (value) (member value xml-langs))]
-                [rrid? (λ (value) (string-prefix? value "RRID:"))]
-                [uri? (λ (value) (regexp-match url-regexp value))]
-                )
-  #:string->predicate (["DOI" doi?] ["RRID" rrid?] ["URL" uri?])
-  ([*TOP* 1]
-   ([@ (range 0 1)]
-    ([*NAMESPACES* (range 0 1)]
-     ([(pattern *) (range 0 n)] uri?)))
-   ([resource 1]
+     '("en-US")
+     (λ (value) "totally going to the database I swear" #t)
+     #f
+     ))
+  (sxml-schema
+   #:predicates ([related-identifier-type? (λ (value) (member value '("URL" "DOI")))]
+                 [resource-type-general? (λ (value) (member value resource-type-generals))]
+                 [iso8601-tz-string? (λ (value) (string->date value "~Y-~M-~DT~TZ"))]  ; TODO make more predicate like...
+                 [relation-type? (λ (value) (member value relation-types))]
+                 [date-type? (λ (value) (member value '("Submitted" "Updated")))]
+                 [xml-lang? (λ (value) (member value xml-langs))]
+                 [rrid? (λ (value) (if check-remote (hit-the-database value) (string-prefix? value "RRID:")))]
+                 [uri? (λ (value) (regexp-match url-regexp value))]
+                 )
+   #:string->predicate (["DOI" doi?] ["RRID" rrid?] ["URL" uri?])
+   ([*TOP* 1]
     ([@ (range 0 1)]
-     ([xmlns 1] rrid?)  ; FIXME eq? schem-url?
-     ([(pattern xmlns:*) (range 0 n)] uri?))
-    ([identifier 1]
-     ([@ 1]  ; this is the most consistent way to do it
-      ([identifierType 1] "RRID"))
-     rrid?)
-    ([properCitation 1]  ; TODO pc validator
-     ([@ 1] ([render-as 1] "Proper Citation")  ; this is the most consistent way to do it
-            ([type 1] "Inline Text Citation"))
-     string?)
-    ([titles 1]
-     ([title (range 1 n)]
-      ([@ (range 0 1)] ([xml:lang (range 0 1)]  xml-lang?))  ; all terminals have only 1 instance in sxml
-      string?))
-    ([publisher 1] string?)
-    ([description (range 0 1)]
-     ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
-     string?)
-    ([subjects (range 0 1)]
-     ([subject (range 0 n)] ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
-                            string?))
-    ([contributors (range 0 1)]  ; list? vs implicit 'only what we list below is allowed'
-     ([contributor (range 0 n)]
-      ([@ 1] ([contributorType 1] string?))  ; member?
-      ([contributorName 1] string?)))
-    ([dates 1 #:restrictions ([(date (@ (dateType _ ))) 1])]  ; subtree restrictions for at most one
-     ;([dates 1]
-     ([date (range 1 n)
-            #:restrictions ([(@ (dateType "Updated")) (range 0 1) #:warn 0]
-                            [(@ (dateType "Submitted")) (range 0 1) #:warn 0])]
-      ([@ 1] ([dateType 1] date-type?))
-      iso8601-tz-string?))
-    ([resourceType 1]
-     ([@ 1]
-      ;([resourceTypeGeneral 1] (member? ,resource-type-generals))  ; TODO
-      ([resourceTypeGeneral 1] resource-type-general?))  ; TODO
-     ;([resourceTypeGeneral 1 member] [("Material"
-     ;"Software"
-     ;"Services") 1 null?]))  ; TODO
-     string?)
-    ([alternateIdentifiers 1]
-     ([alternateIdentifier (range 1 n)]
-      ([@ 1] ([alternateIdentifierType 1] string?))
-      (->? (@ (alternateIdentifierType _)))))
-    ;(value->predicate (@ (alternateIdentifierType _)))))
-    ([relatedIdentifiers
-      1
-      #:restrictions ([(@ (relationType "IsCompiledBy")) (range 0 n) #:warn 0]
-                      [(@ (relationType "IsIdenticalTo")) (range 0 n) #:warn 0]
-                      [(@ (relationType "IsDerivedFrom")) (range 0 n) #:warn 0])]
-     ([relatedIdentifier (range 1 n)]
+     ([*NAMESPACES* (range 0 1)]
+      ([(pattern *) (range 0 n)] uri?)))
+    ([resource 1]
+     ([@ (range 0 1)]
+      ([xmlns 1] rrid?)  ; FIXME eq? schem-url?
+      ([(pattern xmlns:*) (range 0 n)] uri?))
+     ([identifier 1]
+      ([@ 1]  ; this is the most consistent way to do it
+       ([identifierType 1] "RRID"))
+      rrid?)
+     ([properCitation 1]  ; TODO pc validator
+      ([@ 1] ([render-as 1] "Proper Citation")  ; this is the most consistent way to do it
+             ([type 1] "Inline Text Citation"))
+      string?)
+     ([titles 1]
+      ([title (range 1 n)]
+       ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?))  ; all terminals have only 1 instance in sxml
+       string?))
+     ([publisher 1] string?)
+     ([description (range 0 1)]
+      ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
+      string?)
+     ([subjects (range 0 1)]
+      ([subject (range 0 n)] ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
+                             string?))
+     ([contributors (range 0 1)]  ; list? vs implicit 'only what we list below is allowed'
+      ([contributor (range 0 n)]
+       ([@ 1] ([contributorType 1] string?))  ; member?
+       ([contributorName 1] string?)))
+     ([dates 1 #:restrictions ([(date (@ (dateType _ ))) 1])]  ; subtree restrictions for at most one
+      ;([dates 1]
+      ([date (range 1 n)
+             #:restrictions ([(@ (dateType "Updated")) (range 0 1) #:warn 0]
+                             [(@ (dateType "Submitted")) (range 0 1) #:warn 0])]
+       ([@ 1] ([dateType 1] date-type?))
+       iso8601-tz-string?))
+     ([resourceType 1]
       ([@ 1]
-       ([relatedIdentifierType 1] related-identifier-type?)  ; FIXME inconsistent
-       ;([relationType 1] (member? ,relation-types))  ; TODO
-       ([relationType 1] relation-type?)  ; TODO
+       ;([resourceTypeGeneral 1] (member? ,resource-type-generals))  ; TODO
        ([resourceTypeGeneral 1] resource-type-general?))  ; TODO
-      (->? (@ (relatedIdentifierType _)))))))
-      ;(value->predicate (@ (relatedIdentifierType _)))))))
+      ;([resourceTypeGeneral 1 member] [("Material"
+      ;"Software"
+      ;"Services") 1 null?]))  ; TODO
+      string?)
+     ([alternateIdentifiers 1]
+      ([alternateIdentifier (range 1 n)]
+       ([@ 1] ([alternateIdentifierType 1] string?))
+       (->? (@ (alternateIdentifierType _)))))
+     ;(value->predicate (@ (alternateIdentifierType _)))))
+     ([relatedIdentifiers
+       1
+       #:restrictions ([(@ (relationType "IsCompiledBy")) (range 0 n) #:warn 0]
+                       [(@ (relationType "IsIdenticalTo")) (range 0 n) #:warn 0]
+                       [(@ (relationType "IsDerivedFrom")) (range 0 n) #:warn 0])]
+      ([relatedIdentifier (range 1 n)]
+       ([@ 1]
+        ([relatedIdentifierType 1] related-identifier-type?)  ; FIXME inconsistent
+        ;([relationType 1] (member? ,relation-types))  ; TODO
+        ([relationType 1] relation-type?)  ; TODO
+        ([resourceTypeGeneral 1] resource-type-general?))  ; TODO
+       (->? (@ (relatedIdentifierType _)))))))
+   ;(value->predicate (@ (relatedIdentifierType _)))))))
 ))
 
 ;(define ss (schema-structure))

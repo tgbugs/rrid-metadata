@@ -3,11 +3,19 @@
   (module double-derp racket/base
     (module blank racket/base
       (provide (all-defined-out))
-      (define _ #'i-can-be-whatever-you-need-me-to-be-baby))
+      (define _ #'please-only-use-me-in-templates-thank-you!))
     (require syntax/parse
+             (only-in racket/string string-prefix? string-suffix?)
+             (for-syntax (only-in racket/string string-prefix? string-suffix?))
              (for-template 'blank))
     (provide (all-defined-out)
              (for-template (all-from-out 'blank)))
+
+    (define (syntax->string-prefix? stx-str pref-str)
+      (string-prefix? (symbol->string (syntax->datum stx-str)) pref-str))
+    (define (syntax->string-suffix? stx-str suff-str)
+      (string-suffix? (symbol->string (syntax->datum stx-str)) suff-str))
+
     (define-syntax-class blank-any
       #:literals (_)
       (pattern _))
@@ -31,7 +39,7 @@
     ; big enough for any rrid metadata until the AI's want all their
     ; constitutent identifiers listed on their collaborative papers...
     (define n 99999)
-    (define ->? #'value->predicate))
+    (define ->? (λ () "can't use this outside of special syntax")))
 
   (require syntax/parse
            racket/syntax
@@ -42,7 +50,9 @@
                        )
            (for-template (except-in racket/base _)
                          (only-in racket/list range)
+                         (only-in racket/string string-split)
                          (only-in syntax/parse pattern define-syntax-class id)
+                         (only-in 'double-derp syntax->string-prefix? syntax->string-suffix?)
                          'symbols
                          )  ; fixes range unbound in phase 0 -1 relative
            )
@@ -81,11 +91,12 @@
       ; FIXME there has to be a better way...
       (list->string (build-list (add1 n) (λ (blank) (integer->char (+ 97 m)))))))
   (define (nsuf this-syntax stx)
-    (datum->syntax this-syntax (string->symbol (string-append (symbol->string (syntax->datum stx)) (next-name)))))
-  (define (syntax-string-prefix? stx-str pref-str)
-    (string-prefix? (symbol->string (syntax->datum stx-str)) pref-str))
-  (define (syntax-string-suffix? stx-str suff-str)
-    (string-suffix? (symbol->string (syntax->datum stx-str)) suff-str))
+    (datum->syntax this-syntax (string->symbol (string-append (symbol->string (syntax->datum stx)) "-" (next-name)))))
+
+  ;(define-for-syntax (syntax->string-prefix? stx-str pref-str)
+    ;(string-prefix? (symbol->string (syntax->datum stx-str)) pref-str))
+  ;(define-for-syntax (syntax->string-suffix? stx-str suff-str)
+    ;(string-suffix? (symbol->string (syntax->datum stx-str)) suff-str))
 
   (define-syntax-class sc-head
     #:disable-colon-notation
@@ -93,7 +104,9 @@
                          [-name id]
                          [name-pat sc-name-pat]
                          [count-spec sc-count]
-                         [restriction sc-restr])
+                         ;[restriction sc-restr]  ; FIXME TODO this is broken...
+                         [restriction expr]
+                         )
     (pattern [(~or* -name name-pat)
               count-spec
               (~optional (~seq #:restrictions restriction))]
@@ -103,7 +116,8 @@
                              ;(generate-temporary 'internal-name-pattern)
                              (nsuf this-syntax #'name-pat.name-pattern))
              #:attr match (if (attribute -name)
-                              #'-name
+                              ;#'-name
+                              (nsuf this-syntax #'-name)
                               #'internal-name  ; no colons in the internal names
                               ;#'name-pat.name-pattern
                               )
@@ -111,7 +125,7 @@
                                #'(define-syntax-class name
                                    #:disable-colon-notation
                                    (pattern runtime-name
-                                            #:do [(unless (eq? 'match (syntax->datum #'runtime-name))
+                                            #:do [(unless (eq? '-name (syntax->datum #'runtime-name))
                                                     (raise-syntax-error 'bad-structure
                                                                         (format "expected ~a got ~a"
                                                                                 'match
@@ -122,11 +136,11 @@
                                             #:do [(let* ([p-s (string-split (symbol->string 'name-pat.name-pattern) "*" #:trim? #f)]
                                                          [p (car p-s)]
                                                          [s (cadr p-s)])
-                                                    (unless (and (syntax-string-prefix? #'runtime-name p)
-                                                                 (syntax-string-suffix? #'runtime-name s))
+                                                    (unless (and (syntax->string-prefix? #'runtime-name p)
+                                                                 (syntax->string-suffix? #'runtime-name s))
                                                       (println (list 'failtime: p-s p s #'runtime-name
-                                                                     (syntax-string-prefix? #'runtime-name p)
-                                                                     (syntax-string-suffix? #'runtime-name s)))
+                                                                     (syntax->string-prefix? #'runtime-name p)
+                                                                     (syntax->string-suffix? #'runtime-name s)))
                                                       (raise-syntax-error 'bad-structure
                                                                           (format "expected ~a got ~a"
                                                                                   'name-pat.name-pattern
@@ -151,7 +165,6 @@
          racket/pretty
          'derp
          (only-in racket/list flatten)
-         ;(for-template syntax/parse)  ; needed for templating define-syntax-class? though not sure why that issue showed up now...
          (for-syntax racket/base syntax/parse 'derp))
 (provide (all-defined-out)
          (all-from-out 'derp))
@@ -170,7 +183,8 @@
            #:with termsc (nsuf this-syntax #'termsc)
            ;#:attr predicate-name (if (attribute predicate) () #f)
            #:attr name (cond [(attribute predicate) (generate-temporary #'predicate)]
-                             [(attribute exact-value) #'exact-value])
+                             [(attribute exact-value) #'exact-value]
+                             [(attribute subtree) #'"TODO retrive the value at that subtree and make sure it matches"])
            #:attr sc-pat (cond [(attribute predicate)
                                 #'(define-syntax-class termsc
                                     (pattern runtime-value
@@ -179,45 +193,24 @@
                                                                          (format "TODO ~a not a ~a"
                                                                                  #'runtime-value
                                                                                  (symbol->string 'predicate))))]))]
-                               ;[(attribute exact-value)
-                                ;#'(define-syntax-class terminal
-                                    ;(pattern runtime-value
-                                             ;#:fail-unless (λ () (eq? runtime-value exact-value))))]
                                [else #'(i have no idea what is going on here)])
-           )
-  ;(pattern predicate:id)
-  ;(pattern (~or* exact-value:string exact-value:integer))  ; TODO consider allowing quote literals?
-  ;(pattern (->? subtree:sc-exact-pat))  ; make the predicate at compile time?
-  )
+           ))
+
 (define (not-null? thing) (not (null? thing)))
+
 (define (filter-dots stx this-syntax)
   (datum->syntax this-syntax (filter not-null? (syntax->datum stx))))
 
 (define (flatten-dots stx this-syntax)
   (datum->syntax this-syntax (map flatten (filter not-null? (map flatten (syntax->datum stx))))))
 
-;(define (join-parts this-syntax head body [terminal #'()])
 (define (join-parts this-syntax stx)
-  ;(datum->syntax this-syntax (apply append (map syntax->datum (list head body terminal))))
   (let ([dat (syntax->datum stx)])
-    (datum->syntax this-syntax (apply append dat)))
-  )
+    (datum->syntax this-syntax (apply append dat))))
 
 (define-syntax-class sc-body
   (pattern (head:sc-head body:sc-body ... (~optional terminal:sc-terminal))
-           #:attr name (if (attribute head.sc-pat)
-                           ; TODO #:declare runtime-name head.sc-pat
-                           #;(car (generate-temporaries '(runtime-name)))
-                           #'head.match
-                           #'head.match)
-           ;#:do [(println `(ct-body: ,(attribute body)))]
-           ;#:do [(println `(ct-body: ,(syntax->datum #'(body ...))))]
-           ;#:attr -sc-pat #'head.sc-pat
-           ;#:attr sc-pat #'body.-sc-pat
-           #:attr abody (attribute body)
-           ;#:term-sc (if (and (attribute terminal) (attribute terminal.predicate))
-                         ;#'terminal.sc-pat
-                         ;#f)
+           #:attr name #'head.match
            #:attr syntax-classes (if (not (null? (syntax->datum #'(body.syntax-classes ...))))
                                      (if (attribute head.sc-pat)
                                          (if (and (attribute terminal) (attribute terminal.predicate))
@@ -225,7 +218,6 @@
                                              (join-parts this-syntax #'([head.sc-pat] body.syntax-classes ...)))
                                          (if (and (attribute terminal) (attribute terminal.predicate))
                                              (join-parts this-syntax #'(body.syntax-classes ... [terminal.sc-pat]))
-                                             ;#'(body.syntax-classes ...)
                                              #f ; body only should never happen
                                              ))
                                      (if (attribute head.sc-pat)
@@ -235,65 +227,21 @@
                                          (if (and (attribute terminal) (attribute terminal.predicate))
                                              #'[terminal.sc-pat]
                                              #'())))
-           ;#:do [(println `(ct-body-sc: ,(attribute body.syntax-classes)))]
            #:attr head-convention #'([head.match head.name])
            #:attr term-convention (if (and (attribute terminal)
                                             (attribute terminal.predicate))
                                       #'([terminal.name terminal.termsc])
                                        #'())
-           ;#:attr body-conventions (filter-dots #'(body.local-conventions ...) this-syntax) ; TODO
-           #:attr -local-conventions (if (attribute head.sc-pat)  ; FIXME head names aren't making it in... this is sill all wrong
-                                        (if (and (attribute terminal) (attribute terminal.predicate))
-                                            #'(head-convention body.head-convention ... term-convention)
-                                            #'(head-convention body.head-convention ...))
-                                        #;(if (and (attribute terminal) (attribute terminal.predicate))
-                                              ; TODO
-                                              #'(body-conventions term-conventions)
-                                              #'body-conventions)
-                                        #;(with-syntax ([(body-local-convention ...) body.local-conventions])
-                                          (if (and (attribute terminal) (attribute terminal.predicate))
-                                              #'(body.local-conventions ... term-conventions)
-                                              #'(body.local-conventions ...))
-                                          )
-                                        (let ([body-local-conventions  ; this works better right now
-                                               (map flatten
-                                                    (filter (λ (thing) (not (null? thing)))
-                                                            (syntax->datum
-                                                             (if (and (attribute terminal) (attribute terminal.predicate))
-                                                                 #'(body.local-conventions ... term-conventions)
-                                                                 #'(body.local-conventions ...)))))])
-                                          ;(println `(wat: ,blc))
-                                          (if (null? body-local-conventions)
-                                              #'()
-                                              (datum->syntax this-syntax body-local-conventions)
-                                              ;(datum->syntax this-syntax (map car asdf))
-                                              ;#'(body.local-conventions ...)
-                                              ;#f
-                                              )))
-           #:attr local-conventions (let (;[head-conv (syntax->datum #'head-convention)]
-                                          ;[term-conv (syntax->datum #'term-convention)]
-                                          [body-conv
+           #:attr local-conventions (let ([body-conv
                                            (let ([body-datum
-                                                  (apply append ;map (λ(n)n);flatten
+                                                  (apply append
                                                        (filter (λ (thing) (not (null? thing)))
                                                                (syntax->datum
-                                                                #'(head-convention body.local-conventions ... term-convention)
-                                                                #;(if (and (attribute terminal) (attribute terminal.predicate))
-                                                                    #'(head-convention body.local-conventions ... term-convention)
-                                                                    #'(head-convention body.local-conventions ...)))))])
+                                                                #'(head-convention body.local-conventions ... term-convention))))])
                                              (if (null? body-datum)
                                                  #'()
-                                                 (datum->syntax this-syntax body-datum)))]
-                                          #;[term-conv (attribute term-convention)])
-                                      ;; (apply append) flatten once...
-                                      ;#'(head-conv body-conv term-conv)
-                                      body-conv
-                                      )
-           ;#:do [(println `(ct-lc: ,(syntax->datum (attribute local-conventions))))]
-           ;#:attr name (if (attribute head.name)
-           ;#'head.name
-           ; TODO check the name pattern...
-           ;#'head.npattern)
+                                                 (datum->syntax this-syntax body-datum)))])
+                                      body-conv)
            #:attr -literals (if (attribute head.name-pat)
                                 #'(name body.-literals ...)
                                 #'(body.-literals ...))
@@ -310,12 +258,17 @@
                                                   [#t (raise-syntax-error 'hrm "HRM allow min 2?")])]
                                      [stop (cond [(= -stop 0) #f]
                                                  [(= -stop 1) #t]
-                                                 [#t (raise-syntax-error 'hrm "HRM allow not 1 or n?")])])
-                                ;(pretty-print `(start-stop: ,start ,stop ,(attribute name)))
+                                                 [#t (raise-syntax-error 'hrm "HRM allow not 1 or n?")])]
+                                     ; TODO !!! when there is more than one body what do we do?
+                                     ; also do we allow restrictions on the order? this is technically
+                                     ; originally from xml where the order of nodes doesn't matter and
+                                     ; so... probably don't want to try that here... same issue with
+                                     ; defining order by allowing recursive structures...
+                                     [TODO (length (syntax->datum #'(body ...)))])
                                 (cond  ; FIXME restriction? no, it should just to in the checker...
                                   [(and start stop)
                                    (if (attribute terminal)
-                                       ; TODO (~between (name body.head-racket ... terminal.name) start stop) with numbers
+                                       ; TODO? (~between (name body.head-racket ... terminal.name) start stop) with numbers
                                        #`(name body.head-racket ... terminal.name)
                                        #`(name body.head-racket ... ))  ; FIXME terminals
                                    ;#`(#,(attribute name) (body.name body.body ...) ...)  ; FIXME terminals
@@ -328,13 +281,15 @@
                                      (if (attribute terminal)
                                          #`(seq (name body.head-racket ... terminal.name) elip+)
                                          #`(seq (name body.head-racket ...) elip+))
-                                     ;#`(#,(attribute name) (body.name body.body ...) ... elip+)
                                      )
                                    ]
                                   [(and (not start) stop)
-                                   (if (attribute terminal)
-                                       #`(~optional (name body.head-racket ... terminal.name))
-                                       #`(~optional (name body.head-racket ...)))
+                                   (with-syntax (;[elip (datum->syntax this-syntax '...)]
+                                                 [opt (datum->syntax this-syntax '~optional)]
+                                                 #;[seq (datum->syntax this-syntax '~seq)])
+                                     (if (attribute terminal)
+                                         #`(opt (name body.head-racket ... terminal.name))
+                                         #`(opt (name body.head-racket ...))))
                                    ;#`(~optional (#,(attribute name) (body.name body.body ...) ...))
                                    ]
                                   [(and (not start) (not stop))
@@ -348,7 +303,7 @@
                                      ;#`(~optional (~seq (#,(attribute name) (body.name body.head-racket ...) ...) elip))
                                      )
                                    ]
-                                  [#t (raise-syntax-error 'wat "should not get here")]
+                                  [else (raise-syntax-error 'wat "should not get here")]
                                   ))
            #:attr racket (attribute head-racket); #`(#,(attribute name) body.head-racket ...)
            #:attr -racket '(let ([start (attribute body.start)]
@@ -369,6 +324,7 @@
                             (cons (attribute head.name) (attribute body.names))
                             (list (attribute head.name)))
            #:attr stx-names (datum->syntax this-syntax (attribute names))
+           #|
            #:attr test-name (if (attribute head.name)
                                 #'(λ (sxml) (eq? head.name (car sxml)))
                                 #;(λ (sxml)
@@ -419,5 +375,6 @@
                             #'test
                             #;(list (attribute test)))
            #:attr stx-tests #'tests #;(datum->syntax this-syntax (attribute tests))
+           |#
            )
   )
