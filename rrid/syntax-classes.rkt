@@ -172,11 +172,16 @@
   )
 (define (not-null? thing) (not (null? thing)))
 (define (filter-dots stx this-syntax)
-  (datum->syntax this-syntax (filter not-null? (syntax->datum stx)))
-  )
+  (datum->syntax this-syntax (filter not-null? (syntax->datum stx))))
 
 (define (flatten-dots stx this-syntax)
-  (datum->syntax this-syntax (map flatten (filter not-null? (map flatten (syntax->datum stx)))))
+  (datum->syntax this-syntax (map flatten (filter not-null? (map flatten (syntax->datum stx))))))
+
+;(define (join-parts this-syntax head body [terminal #'()])
+(define (join-parts this-syntax stx)
+  ;(datum->syntax this-syntax (apply append (map syntax->datum (list head body terminal))))
+  (let ([dat (syntax->datum stx)])
+    (datum->syntax this-syntax (apply append dat)))
   )
 
 (define-syntax-class sc-body
@@ -191,14 +196,19 @@
            ;#:attr -sc-pat #'head.sc-pat
            ;#:attr sc-pat #'body.-sc-pat
            #:attr abody (attribute body)
+           ;#:term-sc (if (and (attribute terminal) (attribute terminal.predicate))
+                         ;#'terminal.sc-pat
+                         ;#f)
            #:attr syntax-classes (if (not (null? (syntax->datum #'(body.syntax-classes ...))))
                                      (if (attribute head.sc-pat)
                                          (if (and (attribute terminal) (attribute terminal.predicate))
-                                             (filter-dots #'(head.sc-pat body.syntax-classes ... terminal.sc-pat) this-syntax)
-                                             (filter-dots #'(head.sc-pat body.syntax-classes ...) this-syntax))
+                                             (join-parts this-syntax #'([head.sc-pat] body.syntax-classes ... [terminal.sc-pat]))
+                                             (join-parts this-syntax #'([head.sc-pat] body.syntax-classes ...)))
                                          (if (and (attribute terminal) (attribute terminal.predicate))
-                                             (filter-dots #'(body.syntax-classes ... terminal.sc-pat) this-syntax)
-                                             (filter-dots #'(body.syntax-classes ...) this-syntax)))
+                                             (join-parts this-syntax #'(body.syntax-classes ... [terminal.sc-pat]))
+                                             ;#'(body.syntax-classes ...)
+                                             #f ; body only should never happen
+                                             ))
                                      (if (attribute head.sc-pat)
                                          (if (and (attribute terminal) (attribute terminal.predicate))
                                              #'(head.sc-pat terminal.sc-pat)
@@ -207,12 +217,12 @@
                                              #'terminal.sc-pat
                                              #'())))
            ;#:do [(println `(ct-body-sc: ,(attribute body.syntax-classes)))]
-           #:attr head-convention #'[head.match head.name]
+           #:attr head-convention #'([head.match head.name])
            #:attr term-convention (if (and (attribute terminal)
                                             (attribute terminal.predicate))
-                                       #'[terminal.name terminal.termsc]
+                                      #'([terminal.name terminal.termsc])
                                        #'())
-           ;#:attr body-conventions (flatten-dots #'(body.local-conventions ...) this-syntax) ; TODO
+           ;#:attr body-conventions (filter-dots #'(body.local-conventions ...) this-syntax) ; TODO
            #:attr -local-conventions (if (attribute head.sc-pat)  ; FIXME head names aren't making it in... this is sill all wrong
                                         (if (and (attribute terminal) (attribute terminal.predicate))
                                             #'(head-convention body.head-convention ... term-convention)
@@ -240,15 +250,18 @@
                                               ;(datum->syntax this-syntax (map car asdf))
                                               ;#'(body.local-conventions ...)
                                               ;#f
-                                              )
-                                          ))
-           #:attr local-conventions (let (;[head-conv #'head-convention]
+                                              )))
+           #:attr local-conventions (let (;[head-conv (syntax->datum #'head-convention)]
+                                          ;[term-conv (syntax->datum #'term-convention)]
                                           [body-conv
                                            (let ([body-datum
-                                                  (map flatten
+                                                  (apply append ;map (λ(n)n);flatten
                                                        (filter (λ (thing) (not (null? thing)))
                                                                (syntax->datum
-                                                                #'(head-convention body.local-conventions ... term-convention))))])
+                                                                #;#'(head-convention body-conventions term-convention)
+                                                                (if (and (attribute terminal) (attribute terminal.predicate))
+                                                                    #'(head-convention body.local-conventions ... term-convention)
+                                                                    #'(head-convention body.local-conventions ...)))))])
                                              (if (null? body-datum)
                                                  #'()
                                                  (datum->syntax this-syntax body-datum)))]
@@ -283,6 +296,7 @@
                                 (cond  ; FIXME restriction? no, it should just to in the checker...
                                   [(and start stop)
                                    (if (attribute terminal)
+                                       ; TODO (~between (name body.head-racket ... terminal.name) start stop) with numbers
                                        #`(name body.head-racket ... terminal.name)
                                        #`(name body.head-racket ... ))  ; FIXME terminals
                                    ;#`(#,(attribute name) (body.name body.body ...) ...)  ; FIXME terminals

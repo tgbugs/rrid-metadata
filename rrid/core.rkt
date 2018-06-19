@@ -57,6 +57,7 @@
         (~optional (~seq #:predicates predicate-let:sc-pred))
         (~optional (~seq #:string->predicate string-let:sc-string-pred))
         schema:sc-body)
+     ;(pretty-write `(ct-body-sc: ,(syntax->datum #'schema.syntax-classes)))
      (define BODY
        ; FIXME with-syntax* fails completely silently when not imported wtf
        (with-syntax* ([shead (attribute schema.head)]
@@ -166,9 +167,16 @@
   (aaa '(top))
   (aaa '(top (yeee)))
   )
-(module+ test 
 
+(module+ test
+  (sxml-schema #:name deep-nesting ([a 1] ([b 1] ([c 1] ([d 1] ([e 1] ([f 1] "g")
+                                                                      ([x 1] string?)
+                                                                      ([h 1] "i"))))))))
+#;(module+ test 
+
+  ;(sxml-schema ())  ; fails as expected
   ;(sxml-schema ([]))  ; fails as expected
+  ;(sxml-schema ([tag]))  ; fails as expected
   ;(sxml-schema ([tag 0]))  ; fails as expected
   ((sxml-schema ([tag 1])) '(tag))
   ((sxml-schema ([tag 1])) '(not-tag))  ; FIXME this should fail!
