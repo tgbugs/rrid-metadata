@@ -63,6 +63,7 @@
                       ;[sc-pat (attribute schema.sc-pat)]
                       ;[sc-pat (attribute sbody.-sc-pat)]
                       ;[sbody (attribute schema.body)]
+                      [(syntax-class ...) #'schema.syntax-classes]
                       [checker #'(let ([stx-sxml (datum->syntax #f sxml)])  ; vs with-syntax?
                                    ;schema.abody ...  annoying that this does not work
                                    ;schema.body ...
@@ -75,13 +76,25 @@
                                     [schema.racket  ; just validate, there may be better ways
                                      stx-sxml]))]
                       )
-       (if (attribute syntax-name)
-           #'(define (syntax-name sxml)
-               checker
-               sxml)
-           #'(λ (sxml)
-               checker
-               sxml))
+           (if (list? (car (syntax->datum #'schema.syntax-classes)))
+               (if (attribute syntax-name)
+                   #'(define (syntax-name sxml)
+                       syntax-class ...
+                       checker
+                       sxml)
+                   #'(λ (sxml)
+                       syntax-class ...
+                       checker
+                       sxml))
+               (if (attribute syntax-name)
+                   #'(define (syntax-name sxml)
+                       schema.syntax-classes
+                       checker
+                       sxml)
+                   #'(λ (sxml)
+                       schema.syntax-classes
+                       checker
+                       sxml)))
        ))
      ;(pretty-print `(ct-BODY: ,(syntax->datum BODY)))
 
@@ -90,10 +103,15 @@
            (list 'begin sc)
            (cons 'begin sc)))
 
-     (define S-BODY
-       (with-syntax ([(syntax-class ...) #'schema.syntax-classes])
-         #`(begin syntax-class ... #,BODY)  ; lol so much cleaner...
-         ))
+     #;(define S-BODY
+       ;(println `(ct-classes: ,(syntax->datum #'schema.syntax-classes)))
+       (if (list? (car (syntax->datum #'schema.syntax-classes)))
+           (with-syntax ([(syntax-class ...) #'schema.syntax-classes])
+             #`(begin syntax-class ... #,BODY) )
+           #`(schema.syntax-classes #,BODY))  ; lol so much cleaner...
+         )
+
+     (define S-BODY BODY)
 
      ; FIXME gonna be a bit different using syntax, would have to use with-syntax
      ; or something like that
@@ -105,7 +123,7 @@
                         S-BODY))
 
      ;(pretty-write `(ct-S-BODY: ,(syntax->datum S-BODY)))
-     ;(pretty-write `(ct-P-BODY: ,(syntax->datum P-BODY)))
+     (pretty-write `(ct-P-BODY: ,(syntax->datum P-BODY)))
      ;(pretty-write `(ct-MORE: ,(syntax->datum #'schema.stx-tests)))  ; NOTE this is no longer needed
      ;(pretty-write `(ct-MORE: ,(attribute schema.test-name)))
      P-BODY
@@ -120,7 +138,7 @@
     ;([*NAMESPACES* (range 0 1)]
      ;([(pattern *) (range 0 n)] uri?)))
 (define asdfasdf '(hello))
-(module+ test
+#;(module+ test  ; this is garbage now...
 
   (define (wat sxml)
     (let ((stx-sxml (datum->syntax #f sxml)))
@@ -150,21 +168,23 @@
   )
 (module+ test 
 
-  #;(
+  ;(sxml-schema ([]))  ; fails as expected
   ;(sxml-schema ([tag 0]))  ; fails as expected
-  ;(sxml-schema ([]) )
-  ;((car (sxml-schema ([tag 1]))) '(tag))
-  (sxml-schema ([tag 1]))
-  (sxml-schema ([tag 1] 0))
+  ((sxml-schema ([tag 1])) '(tag))
+  ((sxml-schema ([tag 1])) '(not-tag))  ; FIXME this should fail!
+  ((sxml-schema ([tag 1] 0)) '(tag 0))
+  ;((sxml-schema ([tag 1] 0)) '(tag))  ; fails as expected
+  ((sxml-schema ([tag 1] "")) '(tag ""))
+  (sxml-schema ([tag 1] ([tag2 1] 0) 0))
+  ;(sxml-schema ([tag 1] ([tag2 (range 0 1)] 0) 0))  ; TODO FIXME ~optional complaint!?
+
+  #;(
   ;(procedure-arity (car (sxml-schema ([tag 1] 0))))
   ;((car (sxml-schema ([tag 1] 0))) '(tag))
   ;((car (sxml-schema ([tag 1] 0))) '(0))
-  (sxml-schema ([tag 1] ""))
-  (sxml-schema ([tag 1] ([tag2 1 #:restrictions ([(tag3 _) 1])] ([tag3 (range 0 n)] string?))))
+  (sxml-schema ([tag 1] ([tag2 1 #:restrictions ([(tag3 _) 1])] ([tag3 (range 0 n)] string?))))  ; FIXME what was the _ supposed to be?
   ;(sxml-schema ([tag 1] 0 ""))  ; fails as expected
   ;(sxml-schema ([tag 1] "" 0))  ; fails as expected
-  (sxml-schema ([tag 1] ([tag2 1] 0) 0))
-  (sxml-schema ([tag 1] ([tag2 (range 0 1)] 0) 0))
   (sxml-schema ([tag 1] ([tag2 (range 0 1)] pred2?) pred1?))
   (sxml-schema ([tag 1] ([tag2 (range 0 1)] ([tag3 1] pred3?) "ok") pred1?))
   (sxml-schema ([tag 1] ([tag2 (range 0 1)] ([tag3 1] pred3?)) pred1?))
@@ -185,7 +205,8 @@
                 ([tag2 (range 0 1)] "value2")
                 ([tag3 (range 0 n)] predicate?)
                 "value"))
-  )
+   )
+
   ;(sixth (schema-structure))
   (sxml-schema #:name test-pred ([top 1] ([head (range 1 n)] string?)))
   (test-pred '(top (head "anything") (head "anything2")))
@@ -206,42 +227,14 @@
   ;(test3 '(b:hello (a:there "wat"))) ; failes as expected
 
   (sxml-schema #:name thing ([TOP 1] ([asdf (range 0 n)] "hello there")))
+  ; FIXME I think we want this to translate into (~or* (~optional 1) (~optional 2)) ...
   (sxml-schema #:name multi-body-test ([TOP 1] ([(pattern *body1) (range 0 n)] "hello there")
                                                ([(pattern *body2) (range 0 n)] "general nobody")
-                                               null))
-  (multi-body-test '(TOP (body1 "hello there")
+                                               ;null)) ; FIXME this should fail? null isn't a predicate
+                                               null?))
+  (multi-body-test '(TOP (a-body1 "hello there") (b-body1 "hello there")
                          (body2 "general nobody")))
 
-  #;(define-syntax-class
-    a:*
-    (pattern
-     runtime-name:id
-     ;#:fail-when (λ () (println "wtf" regular-port) #t)
-     ;#:fail-unless (λ () (raise-syntax-error 'STAPH "pls stop"))
-     #:do [(let* ([p-s (string-split (symbol->string 'a:*) "*" #:trim? #f)]
-                  [p (car p-s)]
-                  [s (cadr p-s)])
-             (println `(working?: p s))
-             (unless (and (string-prefix? (symbol->string (syntax->datum #'runtime-name)) p)
-                          (string-suffix? (symbol->string (syntax->datum #'runtime-name)) s))
-               (raise-syntax-error 'bad-structure (format "expected ~a got ~a" 'a:* (syntax->datum #'runtime-name)))))]))
-  #;(define-syntax-class
-    b:*
-    (pattern
-     runtime-name:id
-     ;#:fail-when (λ () (println "wtf" regular-port) #t)
-     ;#:fail-unless (λ () (raise-syntax-error 'STAPH "pls stop"))
-     #:do [(let* ([p-s (string-split (symbol->string 'b:*) "*" #:trim? #f)]
-                  [p (car p-s)]
-                  [s (cadr p-s)])
-             (println `(working?: p s))
-             (unless (and (string-prefix? (symbol->string (syntax->datum #'runtime-name)) p)
-                          (string-suffix? (symbol->string (syntax->datum #'runtime-name)) s))
-               (raise-syntax-error 'STAHP "pls")))]))
-  #;(syntax-parse #'(a:* (b:* "wat")) #:local-conventions ((one a:*) (two b:*)) [(one (two "wat"))
-                                                                               "this should fail?"])
-  ;(syntax-parse #'(should2 (fail2 "wat")) #:local-conventions ((a a:*) (b b:*)) [(a (b "wat")) "this should fail"])
-  #;(syntax-parse #'(a:hello (b:world "wat")) #:local-conventions ((a a:*) (b b:*)) [(a (b "wat")) "this should fail"])
 )
 
 ;; utility
