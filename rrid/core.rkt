@@ -49,6 +49,11 @@
      ;(define lits-stx (datum->syntax this-syntax lits))
      ;(define lits-values (datum->syntax this-syntax (cons 'values (range (length lits)))))
      #:with lits-stx (datum->syntax this-syntax (remove-duplicates (syntax->datum #'schema.literals)))
+     (when (attribute schema.range)
+       (raise-syntax-error 'spec-error
+                           (format "The top node ~a cannot specify a name pattern, only 1 e.g. ([top 1])"
+                                   #'schema.name)))
+     ; FIXME sourceloc...
      (define BODY
        ; FIXME with-syntax* fails completely silently when not imported wtf
        (with-syntax (;[shead (attribute schema.head)]
@@ -102,12 +107,19 @@
 
 #;(module+ test 
   ((sxml-schema ([tag 1])) '(tag))
-  (sxml-schema #:name test2 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
+  (sxml-schema #:name test2 ([(pattern a:*) 1]
+                             ([(pattern b:*) 1] "wat")))
   ;(test2 '(a:* (b:* "nope")))
   (test2 '(a:hello (b:there "wat")))
+  ;(test2 '(a:* (b:* "wat") (b:* "wat")))  ; now failing correclty
+(let ([schema (sxml-schema ([tag 1] ([tag2 (range 0 1)] string?) integer?))])
+    (schema '(tag (tag2 "thing") 109219))
+    (schema '(tag 109219)))  ; FIXME have to insert the optional here...
   )
 
-(module+ test
+#;(module+ test
+
+
   (sxml-schema #:name fail-test ([TOP 1] ([a (range 0 n)])
                                          ([b (range 0 n)])))
 
@@ -116,6 +128,17 @@
   (fail-test '(TOP (a) (b)))
   (fail-test '(TOP (b) (a)))
   (fail-test '(TOP (a) (b) (b) (a)))
+
+  (sxml-schema #:name sigh ([TOP 1] ([a 1]) ([b 1])))
+  (sigh '(TOP (a) (b)))
+  (sigh '(TOP (b) (a)))
+
+  (sxml-schema #:name sigh2 ([TOP 1] ([a (range 1 n)]) ([b (range 0 n)])))
+  (sigh2 '(TOP (a)))
+  (sigh2 '(TOP (a) (b)))
+  (sigh2 '(TOP (b) (a)))
+  ;(sigh2 '(TOP (b)))  ; should fail  and now does
+  )#;(
 
 
   (define (fail-test-e sxml)
@@ -257,22 +280,23 @@
 
 
   )
-#;(module+ test 
+(module+ test 
   (require syntax/macro-testing)
   (define-syntax (test-negative stx)
     (syntax-parse stx
       [(_ inner-stx)
-       #'(with-handlers ([exn:fail:syntax? (λ (e) "OK syntax")]
-                         [exn:fail? (λ (e) "OK fail")]
-                         ;[exn? (λ (e) "OK")]
+       #:with stx-print #'(syntax inner-stx) ;(datum->syntax #f (list (syntax->datum stx)))
+       #'(with-handlers ([exn:fail:syntax? (λ (e) "OK syntax" #f)]
+                         [exn:fail? (λ (e) "OK fail" #f)]
+                         ;[exn? (λ (e) "OK" #f)]
                          )
            (convert-syntax-error inner-stx)
            ;(raise-type-error 'negative-failed "negative syntax check passed when it should have failed")
-           #f)]))
-  (define (assert thing)
-    (unless thing
-      (raise-result-error 'assertion-fail "#t" thing)))
+           stx-print)]))
 
+  (define (assert thing)
+    (when thing
+      (raise-result-error 'assertion-fail (format "failure of: ~a" thing) 'success)))
 
   (sxml-schema #:name deep-nesting ([a 1] ([b 1] ([c 1] ([d 1] ([e 1] ([f 1] "g")
                                                                       ([x 1] string?)
@@ -297,7 +321,7 @@
   #;((sxml-schema ([tag 1] list?))
      '(tag (wat if this works i will eat my hat)))  ; FIXME weird error, but sudden insight into how to compose these schemas! just turn a validator into a predicate and stick it in #:predicates and boom, you can compose to your hearts content
   (let ([schema (sxml-schema ([tag 1] ([tag2 (range 0 1)] string?) integer?))])
-    (schema '(tag (tag2 "thing") 109219))
+    (schema '(tag (tag2 "thing") 109219))  ; FIXME wat
     (schema '(tag 109219)))
   (sxml-schema ([tag 1] ([tag2 (range 0 1)] ([tag3 1] symbol?) "ok") string?))
   (sxml-schema ([tag 1] ([tag2 (range 0 1)] ([tag3 1] symbol?)) string?))
