@@ -284,6 +284,7 @@
                                                  [(= -stop 1) #t]
                                                  [#t (raise-syntax-error 'hrm "HRM allow not 1 or n?")])]
                                      [altsp (attribute alts)]
+                                     [bodyp (attribute alts)]
                                      [malts (< 1 (length (syntax->datum #'(body.head-racket ...))))]
                                      [termp (attribute terminal)]
                                      ; TODO !!! when there is more than one body what do we do?
@@ -292,129 +293,28 @@
                                      ; so... probably don't want to try that here... same issue with
                                      ; defining order by allowing recursive structures...
                                      [TODO (length (syntax->datum #'(body ...)))])
-                                #;(cond  ; FIXME restriction? no, it should just to in the checker...
-                                  [(and start stop)  ; FIXME all these conditionals get called wrong now...
-                                   (if malts
-                                       (if termp
-                                           ; TODO? (~between (name body.head-racket ... terminal.name) start stop) with numbers
-                                           #`(name (alt body.head-racket ...) elip terminal.name)
-                                           #`(name (alt body.head-racket ...) elip)  ; FIXME terminals
-                                           ;#`(name alts terminal.name)
-                                           #;#`(name alts)
-                                           )
-                                       (if termp
-                                           ; TODO? (~between (name body.head-racket ... terminal.name) start stop) with numbers
-                                           ;#`(name (alt body.head-racket ...) elip terminal.name)
-                                           ;#`(name (alt body.head-racket ...) elip)))  ; FIXME terminals
-                                           #`(name body.head-racket ... terminal.name)
-                                           #`(name body.head-racket ...))
-                                       )  ; FIXME terminals
-                                   ;#`(#,(attribute name) (body.name body.body ...) ...)  ; FIXME terminals
-                                   ]
-                                  [(and start (not stop))
-                                   (if malts  ; FIXME this is inverted, the between needs to come wrapping the 
-                                       (if termp
-                                           ;#`(between (name (alt body.head-racket ...) elip terminal.name) one inf)
-                                           ;#`(between (name (alt body.head-racket ...) elip) one inf)
-                                           ;#`(between (name alts terminal.name) 1 +inf.0)
-                                           ;#`(between (name alts) 1 +inf.0)
-                                           #'(name (alt (between body.head-racket body.head-start body.head-stop) ...) elip terminal.name)
-                                           #'(name (alt (between body.head-racket body.head-start body.head-stop) ...) elip)
-                                           )
-                                       (if termp
-                                           ;#`(between (name (alt body.head-racket ...) elip terminal.name) 1 +inf.0)
-                                           ;#`(between (name (alt body.head-racket ...) elip) 1 +inf.0))
-                                           ;#`(between (name body.head-racket ... terminal.name) one inf)
-                                           ;#`(between (name body.head-racket ...) one inf))
-
-                                           ;#`(seq (name body.head-racket ... terminal.name) elip+)
-                                           ;#`(seq (name body.head-racket ...) elip+)
-                                           ; TODO have to check if we start...
-
-                                           #'(name body.head-racket ... body.elip-type ... terminal.name)
-                                           #'(name body.head-racket ... body.elip-type ... )
-                                           )
-                                       )
-                                   ]
-                                  [(and (not start) stop)
-                                   (if malts
-                                       (if termp
-                                           #`(opt (name (alt body.head-racket ...) elip terminal.name))
-                                           #`(opt (name (alt body.head-racket ...) elip))
-                                           ;#`(opt (name alts terminal.name))
-                                           #;#`(opt (name alts)))
-                                       (if termp
-                                           ;#`(opt (name (alt body.head-racket ...) elip terminal.name))
-                                           ;#`(opt (name (alt body.head-racket ...) elip))))
-                                           #`(opt (name body.head-racket ... terminal.name))
-                                           #`(opt (name body.head-racket ...))))
-                                   ;#`(~optional (#,(attribute name) (body.name body.body ...) ...))
-                                   ]
-                                  [(and (not start) (not stop))
-                                   (if malts 
-                                       (if termp
-                                           #`(seq (name (alt body.head-racket ...) elip terminal.name) elip)
-                                           #`(seq (name (alt body.head-racket ...) elip) elip)
-                                           ;#`(seq (name alts terminal.name) elip)
-                                           ;#`(seq (name alts ) elip)
-                                           ;#`(between (name alts terminal.name) 0 +inf.0)
-                                           ;#`(between (name alts ) 0 +inf.0)
-                                           ;#`(~optional (~seq (#,(attribute name) (body.name body.head-racket ...) ...) elip))
-                                           )
-                                       (if termp
-                                           ;#`(seq (name (alt body.head-racket ...) elip terminal.name) elip)
-                                           ;#`(seq (name (alt body.head-racket ...) elip) elip)
-                                           ;#`(seq (name alts terminal.name) elip)
-                                           ;#`(seq (name alts ) elip)
-                                           ;#`(between (name body.head-racket ... terminal.name) zero inf)
-                                           ;#`(between (name body.head-racket ...) zero inf)
-                                           ;#`(seq (name body.head-racket ... terminal.name) elip)
-                                           ;#`(seq (name body.head-racket ...) elip)
-                                           (if altsp
-                                           ;#`(name body.head-racket ... terminal.name)
-                                           ;#`(name terminal.name)
-                                           #`(seq (name body.head-racket ... terminal.name) elip+)
-                                           #`(seq (name terminal.name) elip+)
-                                               )
-                                           ; FIXME the way a single node represents itself depends
-                                           ; on whether it is in an alts block which it can't know
-                                           ; but then if we do that as we do below then we have
-                                           ; to pass information up the chain to indicate that a between or seq needs to be created
-                                           (if altsp
-                                               #`(name body.head-racket ... elip)
-                                               #`(name); body.head-racket ...)
-                                               ;#`(seq (name body.head-racket ...) elip+)
-                                               ;#`(seq (name) elip+)
-                                               )
-                                           ;#`(~optional (~seq (#,(attribute name) (body.name body.head-racket ...) ...) elip))
-                                           ))
-                                   ]
-                                  [else (raise-syntax-error 'wat "should not get here")]
-                                  )
-                                (if (and(not start) stop)
-                                    (if malts
+                                (if malts
+                                    (if termp
+                                        #'(name (alt (between body.head-racket body.head-start body.head-stop) ...) elip terminal.name)
+                                        #'(name (alt (between body.head-racket body.head-start body.head-stop) ...) elip))
+                                    (if bodyp
+                                        (if (= 1 (car (syntax->datum #'(body.head-stop ...))))
+                                            (if (= 1 (car (syntax->datum #'(body.head-start ...))))
+                                                (if termp
+                                                    ;(range 1 1)
+                                                    #'(name body.head-racket ... terminal.name)
+                                                    #'(name body.head-racket ...))
+                                                (if termp
+                                                    ; (range 0 1)
+                                                    #'(name (opt body.head-racket ...) terminal.name)
+                                                    #'(name (opt body.head-racket ...))))
+                                            (if termp
+                                                ; (range 1 n)
+                                                #'(name body.head-racket ... body.elip-type ... terminal.name)
+                                                #'(name body.head-racket ... body.elip-type ... )))
                                         (if termp
-                                            #'(opt (name (alt (between body.head-racket body.head-start body.head-stop) ...) elip terminal.name))
-                                            #'(opt (name (alt (between body.head-racket body.head-start body.head-stop) ...) elip))
-                                            )
-                                        (if termp
-                                            ; FIXME this will break with +inf.0 I'm sure...
-                                            #'(opt (name body.head-racket ... body.elip-type ... terminal.name))
-                                            #'(opt (name body.head-racket ... body.elip-type ... ))
-                                            )
-                                        )
-                                    (if malts
-                                        (if termp
-                                            #'(name (alt (between body.head-racket body.head-start body.head-stop) ...) elip terminal.name)
-                                            #'(name (alt (between body.head-racket body.head-start body.head-stop) ...) elip)
-                                            )
-                                        (if termp
-                                            ; FIXME we have to detect whether there is actually an elip!
-                                            #'(name body.head-racket ... body.elip-type ... terminal.name)
-                                            #'(name body.head-racket ... body.elip-type ... )
-                                            )
-                                        ))
-                                )
+                                            #'(name terminal.name)
+                                            #'(name)))))
            #:attr racket (attribute head-racket); #`(#,(attribute name) body.head-racket ...)
            #:attr -racket '(let ([start (attribute body.start)]
                                  [stop (attribute body.stop)])
@@ -434,57 +334,5 @@
                             (cons (attribute head.name) (attribute body.names))
                             (list (attribute head.name)))
            #:attr stx-names (datum->syntax this-syntax (attribute names))
-           #|
-           #:attr test-name (if (attribute head.name)
-                                #'(λ (sxml) (eq? head.name (car sxml)))
-                                #;(λ (sxml)
-                                  (println `(,(syntax->datum #'head.name) ,(car sxml)))
-                                  (let ([out (eq? (syntax->datum #'head.name) (car sxml))])
-                                    (println `(test-name: ,out))
-                                    out)
-                                  )
-                                #'(λ (sxml)
-                                  ; TODO handle name-pat
-                                  #f
-                                  )
-                                )
-           #:attr test-restr (if (attribute head.restriction)
-                                 ; this needs more work at the syntax class level
-                                 #'(λ (sxml)
-                                     (if #t ;(eq? (car sxml) (attribute head.rest-name))
-                                         #t  ; TODO this one is a bit more tricky
-                                         #t))
-                                 #'(λ (sxml) #t)
-                                 )
-           #:attr test-body 'TODO  ; TODO
-           #:attr test-term (if (attribute terminal)
-                                (if (attribute terminal.predicate)
-                                    #;(λ (value) ((attribute terminal.predicate) value))
-                                    #'(λ (value) (terminal.predicate value))
-                                    (if (attribute terminal.exact-value)
-                                        #;(λ (value) (eq? value (attribute terminal.exact-value)))
-                                        #'(λ (value) (eq? value terminal.exact-value))
-                                        (if (attribute terminal.subtree)
-                                            #'(λ (value) #f)  ; TODO
-                                            #'(raise-syntax-error 'wat "how did we get here!??!"))))
-                                #'(λ (sxml) #t)
-                                )
-           #:attr test #'(λ (sxml)
-                           (and 
-                            (test-name sxml)
-                            (test-restr sxml)
-                            (test-term sxml))
-                           ) #;(λ (sxml)
-                         ((attribute test-name) sxml)
-                         ((attribute test-restr) sxml)
-                         ((attribute test-term) sxml)  ; FIXME needs to test the terminal
-                         )
-           #:attr tests (if (attribute body)
-                            #'(λ (sxml) (and (test sxml) (body.test (cdr sxml)) ...))  ; TODO body.test body.value?
-                            #;(cons (attribute test) (attribute body.tests))
-                            #'test
-                            #;(list (attribute test)))
-           #:attr stx-tests #'tests #;(datum->syntax this-syntax (attribute tests))
-           |#
            )
   )
