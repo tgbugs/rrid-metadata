@@ -114,6 +114,8 @@
   (fail-test '(TOP (a)))
   (fail-test '(TOP (b)))
   (fail-test '(TOP (a) (b)))
+  (fail-test '(TOP (b) (a)))
+  (fail-test '(TOP (a) (b) (b) (a)))
 
 
   (define (fail-test-e sxml)

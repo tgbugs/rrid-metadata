@@ -256,15 +256,17 @@
 
            #:with alt (datum->syntax this-syntax '~alt)
            #:with seq (datum->syntax this-syntax '~seq)
-           #:with opt (datum->syntax this-syntax '~opt)
+           #:with opt (datum->syntax this-syntax '~optional)
            #:with between (datum->syntax this-syntax '~between)
            #:with elip (datum->syntax this-syntax '...)
            #:with elip+ (datum->syntax this-syntax '...+)
            #:with tdo (datum->syntax this-syntax '~do)  ; if this is noop I will be super pissed
+           #:with inf (datum->syntax this-syntax +inf.0)
+           #:with zero (datum->syntax this-syntax 0)
+           #:with one (datum->syntax this-syntax 1)
            #:attr alts (if (not-null? (syntax->datum #'(body ...)))  ; FIXME vs #'(body.head-racket ...)
                            #'(seq (alt body.head-racket ...) elip)
-                           #'(tdo)
-                           )
+                           #f)
            #:attr head-racket (let* ([-start (attribute start)]
                                      [-stop (attribute stop)]
                                      [start (cond [(= -start 0) #f]
@@ -273,6 +275,9 @@
                                      [stop (cond [(= -stop 0) #f]
                                                  [(= -stop 1) #t]
                                                  [#t (raise-syntax-error 'hrm "HRM allow not 1 or n?")])]
+                                     [altsp (attribute alts)]
+                                     [malts (< 1 (length (syntax->datum #'(body.head-racket ...))))]
+                                     [termp (attribute terminal)]
                                      ; TODO !!! when there is more than one body what do we do?
                                      ; also do we allow restrictions on the order? this is technically
                                      ; originally from xml where the order of nodes doesn't matter and
@@ -281,64 +286,90 @@
                                      [TODO (length (syntax->datum #'(body ...)))])
                                 (cond  ; FIXME restriction? no, it should just to in the checker...
                                   [(and start stop)
-                                   (with-syntax ([elip (datum->syntax this-syntax '...)]
-                                                 ;[elip+ (datum->syntax this-syntax '...+)]
-                                                 ;[between (datum->syntax this-syntax '~between)]
-                                                 [alt (datum->syntax this-syntax '~alt)]  ; the others don't work
-                                                 ;[alt (if (attribute body.head-racket) (datum->syntax this-syntax '~alt) (datum->syntax this-syntax '~seq))]
-                                                 ;[alt (if (not-null? (syntax->datum #'(body.head-racket ...))) (datum->syntax this-syntax '~alt) (datum->syntax this-syntax '~seq))]
-                                                 #;[seq (datum->syntax this-syntax '~seq)])
-                                     (if (attribute terminal)
-                                         ; TODO? (~between (name body.head-racket ... terminal.name) start stop) with numbers
-                                         ;#`(name (alt body.head-racket ...) elip terminal.name)
-                                         ;#`(name (alt body.head-racket ...) elip)))  ; FIXME terminals
-                                         #`(name alts terminal.name)
-                                         #`(name alts)))  ; FIXME terminals
+                                   (if malts
+                                       (if termp
+                                           ; TODO? (~between (name body.head-racket ... terminal.name) start stop) with numbers
+                                           #`(name (alt body.head-racket ...) elip terminal.name)
+                                           #`(name (alt body.head-racket ...) elip)  ; FIXME terminals
+                                           ;#`(name alts terminal.name)
+                                           #;#`(name alts))
+                                       (if termp
+                                           ; TODO? (~between (name body.head-racket ... terminal.name) start stop) with numbers
+                                           ;#`(name (alt body.head-racket ...) elip terminal.name)
+                                           ;#`(name (alt body.head-racket ...) elip)))  ; FIXME terminals
+                                           #`(name body.head-racket ... terminal.name)
+                                           #`(name body.head-racket ...)))  ; FIXME terminals
                                    ;#`(#,(attribute name) (body.name body.body ...) ...)  ; FIXME terminals
                                    ]
                                   [(and start (not stop))
-                                   (with-syntax ([elip (datum->syntax this-syntax '...)]
-                                                 [elip+ (datum->syntax this-syntax '...+)]
-                                                 [between (datum->syntax this-syntax '~between)]
-                                                 [alt (datum->syntax this-syntax '~alt)]
-                                                 [seq (datum->syntax this-syntax '~seq)])
-                                     ; dont need seq since these should always be enclosed?
-                                     ; but then how to we stick the elip on?
-                                     (if (attribute terminal)
-                                         ;#`(between (name (alt body.head-racket ...) elip terminal.name) 1 +inf.0)
-                                         ;#`(between (name (alt body.head-racket ...) elip) 1 +inf.0))
-                                         #`(between (name alts terminal.name) 1 +inf.0)
-                                         #`(between (name alts) 1 +inf.0))
-                                     )
+                                   (if malts
+                                       (if termp
+                                           #`(between (name (alt body.head-racket ...) elip terminal.name) one inf)
+                                           #`(between (name (alt body.head-racket ...) elip) one inf)
+                                           ;#`(between (name alts terminal.name) 1 +inf.0)
+                                           ;#`(between (name alts) 1 +inf.0)
+                                           )
+                                       (if termp
+                                           ;#`(between (name (alt body.head-racket ...) elip terminal.name) 1 +inf.0)
+                                           ;#`(between (name (alt body.head-racket ...) elip) 1 +inf.0))
+                                           ;#`(between (name body.head-racket ... terminal.name) one inf)
+                                           ;#`(between (name body.head-racket ...) one inf))
+                                           #`(seq (name body.head-racket ... terminal.name) elip+)
+                                           #`(seq (name body.head-racket ...) elip+))
+                                       )
                                    ]
                                   [(and (not start) stop)
-                                   (with-syntax ([elip (datum->syntax this-syntax '...)]
-                                                 [opt (datum->syntax this-syntax '~optional)]
-                                                 [alt (datum->syntax this-syntax '~alt)]
-                                                 #;[seq (datum->syntax this-syntax '~seq)])
-                                     (if (attribute terminal)
-                                         ;#`(opt (name (alt body.head-racket ...) elip terminal.name))
-                                         ;#`(opt (name (alt body.head-racket ...) elip))))
-                                         #`(opt (name alts terminal.name))
-                                         #`(opt (name alts))))
+                                   (if malts
+                                       (if termp
+                                           #`(opt (name (alt body.head-racket ...) elip terminal.name))
+                                           #`(opt (name (alt body.head-racket ...) elip))
+                                           ;#`(opt (name alts terminal.name))
+                                           #;#`(opt (name alts)))
+                                       (if termp
+                                           ;#`(opt (name (alt body.head-racket ...) elip terminal.name))
+                                           ;#`(opt (name (alt body.head-racket ...) elip))))
+                                           #`(opt (name body.head-racket ... terminal.name))
+                                           #`(opt (name body.head-racket ...))))
                                    ;#`(~optional (#,(attribute name) (body.name body.body ...) ...))
                                    ]
                                   [(and (not start) (not stop))
-                                   (with-syntax ([elip (datum->syntax this-syntax '...)]
-                                                 [opt (datum->syntax this-syntax '~optional)]
-                                                 ;[between (datum->syntax this-syntax '~between)]
-                                                 [alt (datum->syntax this-syntax '~alt)]
-                                                 ;[seq (datum->syntax this-syntax '~seq)]
-                                                 )
-                                     (if (attribute terminal)
-                                         ;#`(seq (name (alt body.head-racket ...) elip terminal.name) elip)
-                                         ;#`(seq (name (alt body.head-racket ...) elip) elip)
-                                         ;#`(seq (name alts terminal.name) elip)
-                                         ;#`(seq (name alts ) elip)
-                                         #`(between (name alts terminal.name) 0 +inf.0)
-                                         #`(between (name alts ) 0 +inf.0)
-                                     ;#`(~optional (~seq (#,(attribute name) (body.name body.head-racket ...) ...) elip))
-                                     ))
+                                   (if malts 
+                                       (if termp
+                                           #`(seq (name (alt body.head-racket ...) elip terminal.name) elip)
+                                           #`(seq (name (alt body.head-racket ...) elip) elip)
+                                           ;#`(seq (name alts terminal.name) elip)
+                                           ;#`(seq (name alts ) elip)
+                                           ;#`(between (name alts terminal.name) 0 +inf.0)
+                                           ;#`(between (name alts ) 0 +inf.0)
+                                           ;#`(~optional (~seq (#,(attribute name) (body.name body.head-racket ...) ...) elip))
+                                           )
+                                       (if termp
+                                           ;#`(seq (name (alt body.head-racket ...) elip terminal.name) elip)
+                                           ;#`(seq (name (alt body.head-racket ...) elip) elip)
+                                           ;#`(seq (name alts terminal.name) elip)
+                                           ;#`(seq (name alts ) elip)
+                                           ;#`(between (name body.head-racket ... terminal.name) zero inf)
+                                           ;#`(between (name body.head-racket ...) zero inf)
+                                           ;#`(seq (name body.head-racket ... terminal.name) elip)
+                                           ;#`(seq (name body.head-racket ...) elip)
+                                           (if altsp
+                                           #`(name body.head-racket ... terminal.name)
+                                           #`(name terminal.name)
+                                           ;#`(seq (name body.head-racket ... terminal.name) elip)
+                                           ;#`(seq (name terminal.name) elip)
+                                               )
+                                           ; FIXME the way a single node represents itself depends
+                                           ; on whether it is in an alts block which it can't know
+                                           ; but then if we do that as we do below then we have
+                                           ; to pass information up the chain to indicate that a between or seq needs to be created
+                                           (if altsp
+                                               #`(name body.head-racket ... elip)
+                                               #`(name); body.head-racket ...)
+                                               ;#`(seq (name body.head-racket ...) elip)
+                                               ;#`(seq (name) elip)
+                                               )
+                                           ;#`(~optional (~seq (#,(attribute name) (body.name body.head-racket ...) ...) elip))
+                                           ))
                                    ]
                                   [else (raise-syntax-error 'wat "should not get here")]
                                   ))
