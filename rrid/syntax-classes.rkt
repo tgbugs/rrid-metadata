@@ -39,7 +39,8 @@
     ; big enough for any rrid metadata until the AI's want all their
     ; constitutent identifiers listed on their collaborative papers...
     (define n 99999)
-    (define ->? (λ () "can't use this outside of special syntax")))
+    #;(define ->? (λ () "can't use this outside of special syntax"))
+    )
 
   (require syntax/parse
            racket/syntax
@@ -49,7 +50,7 @@
                        'double-derp
                        )
            (for-template (except-in racket/base _)
-                         (only-in racket/list range)
+                         ;(only-in racket/list range)
                          (only-in racket/string string-split)
                          (only-in syntax/parse pattern define-syntax-class id)
                          (only-in 'double-derp syntax->string-prefix? syntax->string-suffix?)
@@ -69,7 +70,7 @@
     (pattern (pattern name-pattern:id))) 
 
   (define-syntax-class sc-count
-    #:literals (range)
+    #:datum-literals (range)
     (pattern number:exact-positive-integer
              ; this is basically 1 or n but we use (range 1 n)
              #:attr start #'number
@@ -117,7 +118,8 @@
                              (nsuf this-syntax #'name-pat.name-pattern))
              #:attr match (if (attribute -name)
                               ;#'-name
-                              (nsuf this-syntax #'-name)
+                              ;(nsuf this-syntax #'-name)
+                              #'-name
                               #'internal-name  ; no colons in the internal names
                               ;#'name-pat.name-pattern
                               )
@@ -170,7 +172,7 @@
          (all-from-out 'derp))
 
 (define-syntax-class sc-terminal
-  #:literals (->?)  ; predicate from sibbling path value
+  #:datum-literals (->?)  ; predicate from sibbling path value
   ;#:local-conventions
   #;([predicate id]
      [exact-value string]
@@ -212,22 +214,22 @@
   (pattern (head:sc-head body:sc-body ... (~optional terminal:sc-terminal))
            #:attr name #'head.match
            #:attr syntax-classes (if (not (null? (syntax->datum #'(body.syntax-classes ...))))
-                                     (if (attribute head.sc-pat)
+                                     (if (attribute head.name-pat)
                                          (if (and (attribute terminal) (attribute terminal.predicate))
                                              (join-parts this-syntax #'([head.sc-pat] body.syntax-classes ... [terminal.sc-pat]))
                                              (join-parts this-syntax #'([head.sc-pat] body.syntax-classes ...)))
                                          (if (and (attribute terminal) (attribute terminal.predicate))
                                              (join-parts this-syntax #'(body.syntax-classes ... [terminal.sc-pat]))
-                                             #f ; body only should never happen
+                                             (join-parts this-syntax #'(body.syntax-classes ...))
                                              ))
-                                     (if (attribute head.sc-pat)
+                                     (if (attribute head.name-pat)
                                          (if (and (attribute terminal) (attribute terminal.predicate))
                                              #'(head.sc-pat terminal.sc-pat)
                                              #'[head.sc-pat])
                                          (if (and (attribute terminal) (attribute terminal.predicate))
                                              #'[terminal.sc-pat]
                                              #'())))
-           #:attr head-convention #'([head.match head.name])
+           #:attr head-convention (if (attribute head.-name) #'() #'([head.match head.name]))
            #:attr term-convention (if (and (attribute terminal)
                                             (attribute terminal.predicate))
                                       #'([terminal.name terminal.termsc])
@@ -242,8 +244,8 @@
                                                  #'()
                                                  (datum->syntax this-syntax body-datum)))])
                                       body-conv)
-           #:attr -literals (if (attribute head.name-pat)
-                                #'(name body.-literals ...)
+           #:attr -literals (if (attribute head.-name)
+                                #'(head.-name body.-literals ...)
                                 #'(body.-literals ...))
            #:attr literals (datum->syntax this-syntax
                                           (let ([lits (attribute -literals)])
@@ -251,6 +253,18 @@
                                             (flatten (map syntax->datum (flatten lits)))))
            #:attr start (syntax-e #'head.start)
            #:attr stop (syntax-e #'head.stop)
+
+           #:with alt (datum->syntax this-syntax '~alt)
+           #:with seq (datum->syntax this-syntax '~seq)
+           #:with opt (datum->syntax this-syntax '~opt)
+           #:with between (datum->syntax this-syntax '~between)
+           #:with elip (datum->syntax this-syntax '...)
+           #:with elip+ (datum->syntax this-syntax '...+)
+           #:with tdo (datum->syntax this-syntax '~do)  ; if this is noop I will be super pissed
+           #:attr alts (if (not-null? (syntax->datum #'(body ...)))  ; FIXME vs #'(body.head-racket ...)
+                           #'(seq (alt body.head-racket ...) elip)
+                           #'(tdo)
+                           )
            #:attr head-racket (let* ([-start (attribute start)]
                                      [-stop (attribute stop)]
                                      [start (cond [(= -start 0) #f]
@@ -267,41 +281,64 @@
                                      [TODO (length (syntax->datum #'(body ...)))])
                                 (cond  ; FIXME restriction? no, it should just to in the checker...
                                   [(and start stop)
-                                   (if (attribute terminal)
-                                       ; TODO? (~between (name body.head-racket ... terminal.name) start stop) with numbers
-                                       #`(name body.head-racket ... terminal.name)
-                                       #`(name body.head-racket ... ))  ; FIXME terminals
+                                   (with-syntax ([elip (datum->syntax this-syntax '...)]
+                                                 ;[elip+ (datum->syntax this-syntax '...+)]
+                                                 ;[between (datum->syntax this-syntax '~between)]
+                                                 [alt (datum->syntax this-syntax '~alt)]  ; the others don't work
+                                                 ;[alt (if (attribute body.head-racket) (datum->syntax this-syntax '~alt) (datum->syntax this-syntax '~seq))]
+                                                 ;[alt (if (not-null? (syntax->datum #'(body.head-racket ...))) (datum->syntax this-syntax '~alt) (datum->syntax this-syntax '~seq))]
+                                                 #;[seq (datum->syntax this-syntax '~seq)])
+                                     (if (attribute terminal)
+                                         ; TODO? (~between (name body.head-racket ... terminal.name) start stop) with numbers
+                                         ;#`(name (alt body.head-racket ...) elip terminal.name)
+                                         ;#`(name (alt body.head-racket ...) elip)))  ; FIXME terminals
+                                         #`(name alts terminal.name)
+                                         #`(name alts)))  ; FIXME terminals
                                    ;#`(#,(attribute name) (body.name body.body ...) ...)  ; FIXME terminals
                                    ]
                                   [(and start (not stop))
-                                   (with-syntax ([elip+ (datum->syntax this-syntax '...+)]
+                                   (with-syntax ([elip (datum->syntax this-syntax '...)]
+                                                 [elip+ (datum->syntax this-syntax '...+)]
+                                                 [between (datum->syntax this-syntax '~between)]
+                                                 [alt (datum->syntax this-syntax '~alt)]
                                                  [seq (datum->syntax this-syntax '~seq)])
                                      ; dont need seq since these should always be enclosed?
                                      ; but then how to we stick the elip on?
                                      (if (attribute terminal)
-                                         #`(seq (name body.head-racket ... terminal.name) elip+)
-                                         #`(seq (name body.head-racket ...) elip+))
+                                         ;#`(between (name (alt body.head-racket ...) elip terminal.name) 1 +inf.0)
+                                         ;#`(between (name (alt body.head-racket ...) elip) 1 +inf.0))
+                                         #`(between (name alts terminal.name) 1 +inf.0)
+                                         #`(between (name alts) 1 +inf.0))
                                      )
                                    ]
                                   [(and (not start) stop)
-                                   (with-syntax (;[elip (datum->syntax this-syntax '...)]
+                                   (with-syntax ([elip (datum->syntax this-syntax '...)]
                                                  [opt (datum->syntax this-syntax '~optional)]
+                                                 [alt (datum->syntax this-syntax '~alt)]
                                                  #;[seq (datum->syntax this-syntax '~seq)])
                                      (if (attribute terminal)
-                                         #`(opt (name body.head-racket ... terminal.name))
-                                         #`(opt (name body.head-racket ...))))
+                                         ;#`(opt (name (alt body.head-racket ...) elip terminal.name))
+                                         ;#`(opt (name (alt body.head-racket ...) elip))))
+                                         #`(opt (name alts terminal.name))
+                                         #`(opt (name alts))))
                                    ;#`(~optional (#,(attribute name) (body.name body.body ...) ...))
                                    ]
                                   [(and (not start) (not stop))
                                    (with-syntax ([elip (datum->syntax this-syntax '...)]
                                                  [opt (datum->syntax this-syntax '~optional)]
-                                                 [seq (datum->syntax this-syntax '~seq)]
+                                                 ;[between (datum->syntax this-syntax '~between)]
+                                                 [alt (datum->syntax this-syntax '~alt)]
+                                                 ;[seq (datum->syntax this-syntax '~seq)]
                                                  )
                                      (if (attribute terminal)
-                                         #`(opt (seq (name body.head-racket ... terminal.name) elip))
-                                         #`(opt (seq (name body.head-racket ...) elip)))
+                                         ;#`(seq (name (alt body.head-racket ...) elip terminal.name) elip)
+                                         ;#`(seq (name (alt body.head-racket ...) elip) elip)
+                                         ;#`(seq (name alts terminal.name) elip)
+                                         ;#`(seq (name alts ) elip)
+                                         #`(between (name alts terminal.name) 0 +inf.0)
+                                         #`(between (name alts ) 0 +inf.0)
                                      ;#`(~optional (~seq (#,(attribute name) (body.name body.head-racket ...) ...) elip))
-                                     )
+                                     ))
                                    ]
                                   [else (raise-syntax-error 'wat "should not get here")]
                                   ))
