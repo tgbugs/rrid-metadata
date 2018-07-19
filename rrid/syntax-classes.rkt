@@ -61,25 +61,29 @@
            (all-from-out 'double-derp)
            (for-template (all-from-out 'symbols)))
 
-  (define-syntax-class any-number
-    #:literals (n)
-    (pattern n))
-
   (define-syntax-class sc-name-pat
     #:literals (pattern)
     (pattern (pattern name-pattern:id))) 
 
   (define-syntax-class sc-count
-    #:datum-literals (range)
+    #:datum-literals (range n)
     (pattern number:exact-positive-integer
              ; this is basically 1 or n but we use (range 1 n)
              #:attr start #'number
              #:attr stop #'number
              #:attr range #f)
-    (pattern (range start:exact-nonnegative-integer stop:exact-positive-integer)
+    (pattern (range 0 n)
+             #:attr start #f
+             #:attr stop #f
              #:attr range #t)
-    (pattern (range start:exact-nonnegative-integer -stop:any-number)
-             #:attr stop #'+inf.0
+    (pattern (range 0 stop:exact-positive-integer)
+             #:attr start #f
+             #:attr range #t)
+    (pattern (range start:exact-positive-integer n)
+             #:attr stop #f
+             #:attr range #t)
+    (pattern (range start:exact-positive-integer stop:exact-positive-integer)
+             #:fail-unless (<= (syntax-e #'start) (syntax-e #'stop)) "stop must be greater than start!"
              #:attr range #t)) 
 
   (define-syntax-class sc-restr
@@ -127,6 +131,8 @@
                               ;#'name-pat.name-pattern
                               )
              #:attr sc-pat (if (attribute -name)
+                               #f
+                               #;
                                #'(define-syntax-class name
                                    #:disable-colon-notation
                                    (pattern runtime-name
@@ -135,7 +141,7 @@
                                                                         (format "expected ~a got ~a"
                                                                                 'match
                                                                                 (syntax->datum #'runtime-name))))]))
-                               #'(define-syntax-class name
+                               #`(define-syntax-class name
                                    #:disable-colon-notation
                                    (pattern runtime-name
                                             #:do [(let* ([p-s (string-split (symbol->string 'name-pat.name-pattern) "*" #:trim? #f)]
@@ -149,10 +155,11 @@
                                                       (raise-syntax-error 'bad-structure
                                                                           (format "expected ~a got ~a"
                                                                                   'name-pat.name-pattern
-                                                                                  (syntax->datum #'runtime-name)))))])))
+                                                                                  (syntax->datum #'runtime-name))
+                                                                          #;#,this-syntax)))])))
              #:attr range (attribute count-spec.range)
-             #:attr start #'count-spec.start
-             #:attr stop #'count-spec.stop
+             #:attr start (attribute count-spec.start)
+             #:attr stop (attribute count-spec.stop)
              ; we can't actually do this inside of there becuase ~optional needs to wrap it
              ;#:attr racket (cond [(attribute count-spec.number) ; TODO name-pat
              ;#'name]
@@ -164,7 +171,9 @@
     (pattern ([name:id (~or* function:expr function:id)] ...)))
 
   (define-syntax-class sc-string-pred
-    (pattern ([string-value:string predicate:id] ...))))
+    (pattern ([string-value:string predicate:id] ...)  ; FIXME confusing because backward from usual let
+             #:attr lambda-let #'([predicate (λ (value) (equal? string-value value))] ...)
+             )))
 
 (require syntax/parse
          racket/syntax
@@ -182,10 +191,10 @@
      [exact-value string]
      [exact-value integer]
      [subtree sc-exact-pat])
-  (pattern (~or* predicate:id
-                 exact-value:string 
-                 exact-value:integer  ; FIXME when does this happen?!
-                 (->? subtree:sc-exact-pat))
+  (pattern (~or predicate:id
+                exact-value:string 
+                exact-value:integer  ; FIXME when does this happen?!
+                (->? subtree:sc-exact-pat))
            #:with termsc (nsuf this-syntax #'termsc)
            ;#:attr predicate-name (if (attribute predicate) () #f)
            #:attr name (cond [(attribute predicate) (generate-temporary #'predicate)]
@@ -193,13 +202,14 @@
                              [(attribute subtree) #'"TODO retrive the value at that subtree and make sure it matches"])
            #:attr sc-pat (cond [(attribute predicate)
                                 #'(define-syntax-class termsc
-                                    (pattern runtime-value
+                                    (pattern runtime-value:expr
                                              #:do [(unless (predicate (syntax->datum #'runtime-value))
                                                      (raise-syntax-error 'bad-structure
                                                                          (format "TODO ~a not a ~a"
                                                                                  #'runtime-value
-                                                                                 (symbol->string 'predicate))))]))]
-                               [else #'(i have no idea what is going on here)])
+                                                                                 (symbol->string 'predicate))
+                                                                         this-syntax))]))]
+                               [else #f #;#'(i have no idea what is going on here)])
            ))
 
 (define (not-null? thing) (not (null? thing)))
@@ -215,6 +225,65 @@
     (datum->syntax this-syntax (apply append dat))))
 
 (define-syntax-class sc-body
+  #:disable-colon-notation
+  #:local-conventions ([head sc-head]
+                       [body sc-body]
+                       [terminal sc-terminal])
+  (pattern (head body ... (~optional terminal))
+
+           #:do [(define len-body (length (syntax->datum #'(body.racket ...))))
+                 ;(define has-body (not (= len-body) 0))  ; preserving for a bug report
+                 (define has-body (not (= len-body 0)))  ; having (not (= len-body) 0) causes an _insane_ error
+                 (define has-multi-body (<= 2 len-body))
+                 (pretty-write len-body)]
+           #:with :... (datum->syntax this-syntax '...)  ; FIXME this-syntax may not be appropriate here
+           #:with :...+ (datum->syntax this-syntax '...+)
+           #:with :~do (datum->syntax this-syntax '~do)
+           #:with :+inf.0 (datum->syntax this-syntax +inf.0)
+           #:with :0 (datum->syntax this-syntax 0)
+           #:with :1 (datum->syntax this-syntax 1)
+
+           #:attr :~alt (if has-multi-body (datum->syntax this-syntax '~alt) #f)
+           #:attr :~between (if has-multi-body (datum->syntax this-syntax '~between) #f)
+           #:attr :~optional (if (and has-body (attribute head.start))  ; FIXME this needs to support ...
+                                    (datum->syntax this-syntax '~optional)
+                                    #f)
+
+           #:attr name #'head.match
+           #:attr range (attribute head.range)
+           #:attr head-stop (attribute head.stop)  ; TODO make sure this is simply false if n is specified
+           #:attr head-start (attribute head.start)
+
+           #:attr syntax-classes (syntax/loc this-syntax
+                                   ((~? head.sc-pat)
+                                    (~? body.syntax-classes) ...
+                                    (~? terminal.sc-pat)))
+           #:with (literals ...) #'((~? name) body.literals ... ...)
+           ;#:attr literals #'((~? name) (~? body.literals) ...)
+           #:attr h-name (if (attribute head.-name) #f #'name) 
+           #:attr t-predicate (if (attribute terminal.predicate) #'terminal.name #f) 
+
+           #:with (local-conventions ...) #'((~? [h-name head.name])
+                                             body.local-conventions ... ...
+                                             (~? [t-predicate terminal.termsc]))
+           #:do [(pretty-write (syntax->datum #'(local-conventions ...)))]
+
+           ;#:attr body-between/optional (if (= (syntax-e #'head.start) 0) #':~optional #f)
+           #:attr elip-type (if (attribute head.stop)
+                                #f
+                                (if (attribute head.start)
+                                    #':...+
+                                    #':...))
+           #:attr racket #'(name
+                            ; FIXME malts and maybe elips go after all the body stuff?
+                            (~? (:~alt (:~between body.racket body.head-start body.head-stop) ...)
+                                (~@ #;(~? :~optional) (~@ body.racket (~? body.elip-type)) ...))
+                            (~? terminal.name))
+           )
+  )
+
+#;
+(define-syntax-class -sc-body
   (pattern (head:sc-head body:sc-body ... (~optional terminal:sc-terminal))
            #:attr name #'head.match
            #:attr range (attribute head.range)
