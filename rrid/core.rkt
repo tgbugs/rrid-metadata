@@ -131,6 +131,7 @@
                   )
               )])
 
+       #;
        (pretty-write `(ct-out: ,(syntax->datum out)))
        out
        )
@@ -225,7 +226,9 @@
         (fail-test-e '(TOP (b "b") (a "a") (a "a")))  ; FIXME fails when it should not
         )
 
+#;
 (module+ test
+    ; FIXME FIXME LOOK HERE
     ; FIXME I think we want this to translate into (~or* (~optional 1) (~optional 2)) ...
     (sxml-schema #:name multi-body-test ([TOP 1] ([(pattern *body1) (range 0 n)] "hello there")
                                                  ([(pattern *body2) (range 0 n)] "general nobody")
