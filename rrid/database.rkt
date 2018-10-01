@@ -22,9 +22,7 @@
     ((symbol? sxml) (double-quote (symbol->string sxml)))
     ((number? sxml) (number->string sxml))
     ((string? sxml) (double-quote sxml))
-    (#t sxml)
-    )
-  )
+    (#t sxml)))
 
 ;; database setup
 (define (setup-counter)
@@ -36,7 +34,7 @@
 
   ; tables, indexes, and sequences
   (define rrid->record-index '((rrid . -1)))
-  (define metadata-records '((-1 . record)))
+  (define metadata-records (make-hasheq '((-1 . record))))
   (define resolve->source-sources '())
   (define counter (setup-counter))
 
@@ -53,7 +51,7 @@
     (let ([current-index (counter)])
       ;(when resolve->source (set! resolve-to-IsDerivedFrom (cons current-index resolve-to-IsDerivedFrom)))
       (for ([id to-resolve]) (set! rrid->record-index (cons (cons id current-index) rrid->record-index)))
-      (set! metadata-records (cons `(,current-index . ,record) metadata-records))
+      (hash-set! metadata-records current-index record)
       (void)))
 
   (define (dump-recs) (list metadata-records resolve->source-sources rrid->record-index))

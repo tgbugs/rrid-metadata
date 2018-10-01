@@ -432,7 +432,7 @@
   (filter (λ (l) (not (empty? l))) lst))
 
 (define (make-global namespace fragment)
-  (string-append namespace (symbol->string fragment)))
+  (string-append namespace fragment))
 
 
 ;; record structure
@@ -619,7 +619,7 @@
         ;extras { display: none; }
         ;")
         (@ (xmlns ,schema-url))
-        (identifier (@ (identifierType "RRID")) ,(string-append "RRID:" (symbol->string primary-id)))
+        (identifier (@ (identifierType "RRID")) ,(string-append "RRID:" primary-id))
         (properCitation (@ (render-as "Proper Citation")  ; XXX RRID addition
                            (type "Inline Text Citation"))
                         ,proper-citation)
@@ -698,7 +698,7 @@
 (define (contrib-format contributorType contributorName)  ; TODO binding macro
   `(contributor (@ ,(bind contributorType)) ,(bind contributorName)))
 
-(define gtr (void))
+(define gtr 'you-have-not-initialized-the-database-yet)
 (define (set-gtr! function)
   (set! gtr function))
 (define add-rec (λ (a b) a))
@@ -707,7 +707,7 @@
 
 ;; main record creation code
 
-(define (make-record identifier-type primary-id #:record type-record . alternate-ids)
+(define (make-record identifier-type -primary-id #:record type-record . alternate-ids)
 
   ; when treated as a qname `@prefix RRID: <http://scicrunch.org/resolver/> .`
   ; FIXME the semantics of the resolver are extremely confusing because we conflate SCR: and RRID: :/ what to do?
@@ -721,7 +721,11 @@
           dict-result
           (dict-ref type-record key))))
 
-  (define qname (string-append "RRID:" (symbol->string primary-id)))
+  (define primary-id (if (symbol? -primary-id)
+                         (symbol->string -primary-id)
+                         -primary-id))
+
+  (define qname (string-append "RRID:" primary-id))
 
   ;(set! type-record (cons (cons 'identifier qname) type-record))
   (dict-set! type-record 'identifier qname)
@@ -754,7 +758,7 @@
                    "URL" "IsIdenticalTo" ,resourceTypeGeneral)
                   (,(string-append "http://identifiers.org/" qname)
                    "URL" "IsIdenticalTo" ,resourceTypeGeneral)
-                  (,(make-global (gtr identifier-type 'namespace) primary-id)
+                  (,(make-global (gtr identifier-type 'namespace) primary-id)  ; FIXME symbol vs string
                    "URL" "IsDerivedFrom" ,resourceTypeGeneral)
                   (,(gtr identifier-type 'url)
                    "URL" "IsCompiledBy" "Service")
@@ -785,10 +789,14 @@
 
   (define titles (cons 'titles
                        (let ([title (dict-ref type-record 'title)])
-                         (if (dict-has-key? type-record 'synonyms)
-                             (map (λ (v) (title-format v "AlternativeTitle"))
-                                  (sort (dict-ref type-record 'synonyms) string<?))
-                             `(,(title-format title))))))
+                         (list* (title-format title)
+                                (if
+                                 (dict-has-key? type-record 'synonyms)
+                                 (map (λ (v) (title-format v "AlternativeTitle"))
+                                      (sort (dict-ref type-record 'synonyms) string<?))
+                                 '()))
+                         )))
+
   (define creators '())  ; TODO
 
   (define subjects
@@ -807,7 +815,7 @@
 
   (define type-specific-record (lambda () ;do not run right now...
                                  (cons (string->symbol (format "rridType:~s" identifier-type))
-                                       (cons `(identifier (@ (type "local")) ,(symbol->string primary-id))  ; (type "fragment")
+                                       (cons `(identifier (@ (type "local")) ,primary-id)  ; (type "fragment")
                                              (append
                                               (for/list ([f (gtr identifier-type 'fields)])
                                                 (cons f
