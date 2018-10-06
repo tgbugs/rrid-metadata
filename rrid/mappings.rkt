@@ -16,6 +16,7 @@
   (check-= 1536968474 (fix-date "20180914T234114+0000") 0))
 
 ;; mappings
+;; sources are all currently coming from disco
 
 (define (ia-es-mapping res) "TODO")
 
@@ -39,7 +40,19 @@
                                            (map (λ (s) (hr s 'name)) (hr res '_source 'item 'synonyms)))
                         )))
 
-(define (abr-es-mapping res) "TODO")
+(define (abr-es-mapping res)
+  (make-record 'antibody
+                (hr res '_source 'item 'identifier)
+                (car (map (λ (h) (hr h 'identifier)) (hr res '_source 'item 'alternateIdentifiers))
+                #:record
+                (ab-rec  ; FIXME rework this as "from-es-rec"
+                 #:title (hr res '_source 'item 'name)
+                 #:insert_time (fix-date (car (hr res '_source 'provenance 'creationDate)))  ; FIXME
+                 #:curate_time (fix-date (hr res '_source 'provenance 'ingestTime))  ; FIXME
+                 #:vendor (map (λ (v) (hr v 'name)) (hr res '_source 'item 'vendors))  ; TODO yes there are multiple
+                 #:catalog-number (map (λ (v) (hr v 'catalogNumber)) (hr res '_source 'item 'vendors))
+                 ;#:vendor-catalog (map (λ (v) (cons (hr v 'name) (hr v 'catalogNumber))) (hr res '_source 'item 'vendors))
+                 ))))
 
 (define (cl-es-mapping res) "TODO")
 
