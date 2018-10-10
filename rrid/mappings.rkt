@@ -25,7 +25,8 @@
   (make-record 'digital
                (hr res '_source 'item 'identifier)
                ; FIXME can't easily pass these in 1 at a time ...
-               (car (map (λ (h) (hr h 'identifier)) (hr res '_source 'item 'alternateIdentifiers)))
+               (car (map (λ (h) ('alternateIdentifiers)
+                            (hr h 'identifier)) (hr res '_source 'item) ))
                #:record
                (scr-rec #:title (hr res '_source 'item 'name)
                         #:submitted (fix-date (car (hr res '_source 'provenance 'creationDate)))  ; FIXME get from the actual db

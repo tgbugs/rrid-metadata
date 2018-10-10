@@ -36,4 +36,189 @@
 ** resource -> JATSCitation (experimental)
    Working on a way to get the JATS tags into the xml in a way that can be copied an pasted out.
    Unfortunately this results in =&lt;= and =&gt;= showing up in the xml version.
+* Mapping to SCR
+  |--------------------------------+---------------------------------+------+-------------+-----------------------------------------|
+  | resource_relationships         | datacite-field property         | core | other table | notes                                   |
+  |--------------------------------+---------------------------------+------+-------------+-----------------------------------------|
+  | id1                            | funderName awardNumber          | x    |             | where reltype_id = 14  fieldsep         |
+  |--------------------------------+---------------------------------+------+-------------+-----------------------------------------|
+  | resources                      |                                 |      |             |                                         |
+  |--------------------------------+---------------------------------+------+-------------+-----------------------------------------|
+  | insert_time                    | submitted                       | x    |             |                                         |
+  | curate_time                    | updated                         | x    |             | why are some of these null?             |
+  |--------------------------------+---------------------------------+------+-------------+-----------------------------------------|
+  | resource_columns name -> value | datacite-field property         | core | other table | notes                                   |
+  |--------------------------------+---------------------------------+------+-------------+-----------------------------------------|
+  | Abbreviation                   | title Other                     | x    |             |                                         |
+  | Additional Resource Types      | resourceType                    | x    |             |                                         |
+  | Alternate IDs                  | alternateIdentifier             | x    |             | was this provieded as an RRID?          |
+  | Alternate URLs                 | relatedIdentifier Other         | x    |             |                                         |
+  | Availability                   |                                 |      |             | skip                                    |
+  | Canonical ID                   |                                 |      |             | dead                                    |
+  | Comment                        |                                 |      |             | skip                                    |
+  | Curation Status                |                                 |      |             | filter only curated                     |
+  | Data Sharing                   |                                 |      |             | dead                                    |
+  | Defining Citation              | relatedIdentifier IsDescribedBy | x    |             |                                         |
+  | Description                    | description                     | x    |             |                                         |
+  | Editorial Note                 |                                 |      |             | dead                                    |
+  | Funding Information            | ???!?!?                         | x    |             | this is the free text field             |
+  | Geo Location                   |                                 |      |             | skip                                    |
+  | History & Hallmarks            |                                 |      |             | dead                                    |
+  | INTENDED DOMAIN(S)             |                                 |      |             | dead                                    |
+  | Impact & Accomplishments       |                                 |      |             | dead                                    |
+  | Intellectual Property          |                                 |      |             | dead                                    |
+  | Keywords                       | subject                         | x    |             |                                         |
+  | License                        | Rights                          | x    |             | reasonably easy to normalize            |
+  | Listed By                      |                                 |      |             | skip                                    |
+  | Lists                          |                                 |      |             | skip                                    |
+  | Located In                     |                                 |      |             | skip                                    |
+  | Mission                        |                                 |      |             | dead                                    |
+  | Old URLs                       | relatedIdentifier Other         | x    |             | can't use Describes due to conflict     |
+  | Parent Organization            | contributor contributorType     |      |             | HostingInstitution                      |
+  | Patient Engagement             |                                 |      |             | dead                                    |
+  | Points of Contact              |                                 |      |             | stale                                   |
+  | Processing                     |                                 |      |             | stale                                   |
+  | PubMed Articles                |                                 |      |             | dead use Resource PubMed IDs 2015-03-30 |
+  | Publication Link               |                                 |      |             | skip                                    |
+  | Recommended By                 |                                 |      |             | skip                                    |
+  | Recommends                     |                                 |      |             | skip                                    |
+  | Related Application            |                                 |      |             | skip                                    |
+  | Related Disease                | subject                         | x    |             |                                         |
+  | Related To                     |                                 |      |             | dead                                    |
+  | Relation                       |                                 |      |             | dead                                    |
+  | Resource Last Update           |                                 |      |             | skip                                    |
+  | Resource Name                  | title                           | x    |             |                                         |
+  | Resource PubMed IDs            |                                 |      |             | loads of pmids vs PubMed Articles       |
+  | Resource Status                |                                 |      |             | skip                                    |
+  | Resource URL                   | relatedIdentifier Describes     | x    |             |                                         |
+  | Social URLs                    |                                 |      |             | skip                                    |
+  | Species                        | subject                         | x    |             |                                         |
+  | Structure and Governance       |                                 |      |             | dead                                    |
+  | Supercategory                  | resourceType                    | x    |             |                                         |
+  | Supporting Agency              |                                 |      |             | dead use id1                            |
+  | Synonyms                       | title AlternativeTitle          | x    |             |                                         |
+  | THERAPEUTIC  NAME              |                                 |      |             | dead                                    |
+  | THERAPEUTIC PUTATIVE MOA       |                                 |      |             | dead ddr?                               |
+  | Terms Of Use URLs              | rightsURI                       | x    |             |                                         |
+  | Twitter Handle                 |                                 |      |             | dead                                    |
+  | Used By                        |                                 |      |             | skip                                    |
+  | Uses                           |                                 |      |             | skip                                    |
+  | original_id                    | alternateIdentifier             | x    |             | if this has not been used, kill it      |
+  | rid                            | identifier                      | x    |             |                                         |
+* contribution publisher etc mapping
+  just look at the rrid it is mostly obvious
+  RRID:RegistrationAuthroity_DistributorLocalName
+      ^
+    Publisher
 
+  - publisher
+  - contributor
+    - contributorType
+      - RegistrationAgency
+      - RegistrationAuthority
+    - affiliation
+
+  asdf
+  - SCR_005400
+    - Publisher
+      SciCrunch
+    - contributors
+      - contributor
+        SciCrunch Registry
+        - contributorType
+          RegistrationAuthority
+      - contributor
+        ???
+        - HostingInstitution  ; parent org
+          
+  - SCR_006397
+    - Publisher
+      SciCrunch
+    - contributors
+      - contributor
+  - SCR_013869
+    - Publisher
+      SciCrunch
+    - contributors
+      - contributor
+          Cellosaurus
+        - contributorType
+          RegistrationAuthority
+      - contributor
+        atcc
+        - contributorType
+          Distributor
+  - Biosamples
+    - Publisher
+      SciCrunch
+    - contributors
+      - contributor
+        NCBI Biosamples
+        - contributorType
+          RegistrationAuthority
+      - contributor
+        IIDP
+        - contributorType
+          Distributor
+  - Animals
+    - Publisher
+      SciCrunch
+    - contributors
+      - contributor
+        IMSR
+        - contributorType
+          RegistrationAuthority
+      - contributor
+        Jackson Laboratories
+        - contributorType
+          Distributor
+
+
+* mapping to abr
+|----------------------+-----------------------------+------+---------------------------------------------------------------------|
+| antibody_table       | datacite-field property     | core | notes                                                               |
+|----------------------+-----------------------------+------+---------------------------------------------------------------------|
+| ab_name              | title                       | x    |                                                                     |
+| ab_target            |                             |      | no                                                                  |
+| target_species       |                             |      | no                                                                  |
+| vendor               |                             |      | no free text                                                        |
+| vendor_id            |                             | x    | get vendor synonms from vendor_table join on vendor id, comma sep   |
+| catalog_num          | alternateIdentifier         | x    | also part of proper citation                                        |
+| clonality            |                             |      | no                                                                  |
+| source_organism      |                             |      | no                                                                  |
+| clone_id             |                             |      | no                                                                  |
+| url                  | relatedIdentifier           | x    | when link = yes, is the only time it works                          |
+| link                 |                             |      | no                                                                  |
+| ab_target_entrez_gid |                             |      | no                                                                  |
+| product_isotype      |                             |      | no                                                                  |
+| product_conjugate    |                             |      | no                                                                  |
+| product_form         |                             |      | no                                                                  |
+| target_subregion     |                             |      | no                                                                  |
+| target_modification  |                             |      | no                                                                  |
+| comments             |                             |      | no (rin ok) relatedIdentifier could be used to look up warnings     |
+| feedback             |                             |      | no                                                                  |
+| defining_citation    |                             |      | not defining, actually use                                          |
+| disc_date            |                             |      | discontinued date warnings also go here and are actually here       |
+| curator_comment      |                             |      | no                                                                  |
+| id                   |                             |      | no                                                                  |
+| ab_id                | identifier                  |      | use this to pretend like we hand out shoulders                      |
+| ab_id_old            | alternateIdentifier         |      | needed for resolution, is 'accession' id never produce this         |
+| of_record            |                             |      | no                                                                  |
+| ix                   |                             |      | no                                                                  |
+| uid                  |                             |      | no                                                                  |
+| status               |                             |      | only release Curated none of the others should be in es anyway      |
+| insert_time          | submitted                   | x    |                                                                     |
+| curate_time          | updated                     | x    |                                                                     |
+| cat_alt              | alternateIdentifier         | x    | {primary} also {comma, separated, list}                             |
+| commercial_type      |                             |      | no (see below)                                                       |
+| uniprot_id           |                             |      | no                                                                  |
+| epitope              |                             |      | no                                                                  |
+|----------------------+-----------------------------+------+---------------------------------------------------------------------|
+| antibody_vendors     |                             |      |                                                                     |
+|----------------------+-----------------------------+------+---------------------------------------------------------------------|
+| vendor               | contributor contributorType |      |                                                                     |
+| synonym              | Other                       | x    | distributor alternate name, may be in a vial somewhere, directional |
+| commercial_type      | Producer                    |      | personal                                                            |
+| commercial_type      | Distributor                 |      | commercial                                                          |
+|                      |                             |      |                                                                     |
+* header check all the things

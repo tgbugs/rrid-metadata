@@ -501,92 +501,108 @@
   int>prev-or-n : INTEGER | n  ; must test INTEGER > 0-1
   child-is-pred : racket-predicate  ; must test explicitly whether absense is valid in context
   |#
-  (define-values (resource-type-generals relation-types xml-langs hit-the-database check-remote)
-    (values  ; TODO pull these out
-     '("Material" "Software" "Service")
-     '("IsCompiledBy" "IsIdenticalTo" "IsDerivedFrom")
-     '("en-US")
-     (λ (value) "totally going to the database I swear" #t)
-     #f
-     ))
-  (sxml-schema
-    #:predicates ([related-identifier-type? (λ (value) (member value '("URL" "DOI")))]
-                  [resource-type-general? (λ (value) (member value resource-type-generals))]
-                  [iso8601-tz-string? (λ (value) (string->date value "~Y-~M-~DT~TZ"))]  ; TODO make more predicate like...
-                  [relation-type? (λ (value) (member value relation-types))]
-                  [date-type? (λ (value) (member value '("Submitted" "Updated")))]
-                  [xml-lang? (λ (value) (member value xml-langs))]
-                  [rrid? (λ (value) (if check-remote (hit-the-database value) (string-prefix? value "RRID:")))]
-                  [uri? (λ (value) (regexp-match url-regexp value))]
-                  )
-    #:string->predicate (["DOI" doi?] ["RRID" rrid?] ["URL" uri?])
-    ([nothing 1])
-    #;
-    ([*TOP* 1]
-     ([@ (range 0 1)]
-      ([*NAMESPACES* (range 0 1)]
-       ([(pattern *) (range 0 n)] uri?)))
-     ([resource 1]
+  (let
+      ; TODO pull these out
+      ([resource-type-generals '("Material" "Software" "Service")]
+       [relation-types '("IsCompiledBy"
+                         "IsIdenticalTo"
+                         "IsDerivedFrom"
+                         "IsDescribedBy"
+                         "Describes"
+                         "Other")]
+       [contributor-types '(
+                            "Distributor"  ; antibody vendors
+                            "Producer"  ; individual personal antibody maker
+                            "Other"  ; antibody vendor "synonyms" aka acquired companies
+                            "HostingInstitution"  ; parrent organization (see if this fits)
+                            "RegistrationAgency"
+                            "RegistrationAuthority"
+
+                            )]
+       [xml-langs '("en-US")]
+       [hit-the-database (λ (value) "totally going to the database I swear" #t)]
+       [check-remote #f])
+    (sxml-schema
+     #:predicates ([related-identifier-type? (λ (value) (member value '("URL" "DOI")))]
+                   [resource-type-general? (λ (value) (member value resource-type-generals))]
+                   [iso8601-tz-string? (λ (value) (string->date value "~Y-~M-~DT~TZ"))]  ; TODO make more predicate like...
+                   [contributor-type? (λ (value) (member value contributor-types))]
+                   [relation-type? (λ (value) (member value relation-types))]
+                   [date-type? (λ (value) (member value '("Submitted" "Updated")))]
+                   [xml-lang? (λ (value) (member value xml-langs))]
+                   [rrid? (λ (value) (if check-remote (hit-the-database value) (string-prefix? value "RRID:")))]
+                   [uri? (λ (value) (regexp-match url-regexp value))]
+                   )
+     #:string->predicate (["DOI" doi?] ["RRID" rrid?] ["URL" uri?])
+     ([nothing 1])
+     ([*TOP* 1]
       ([@ (range 0 1)]
-       ([xmlns 1] rrid?)  ; FIXME eq? schem-url?
-       ([(pattern xmlns:*) (range 0 n)] uri?))
-      ([identifier 1]
-       ([@ 1]  ; this is the most consistent way to do it
-        ([identifierType 1] "RRID"))
-       rrid?)
-      ([properCitation 1]  ; TODO pc validator
-       ([@ 1] ([render-as 1] "Proper Citation")  ; this is the most consistent way to do it
-              ([type 1] "Inline Text Citation"))
-       string?)
-      ([titles 1]
-       ([title (range 1 n)]
-        ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?))  ; all terminals have only 1 instance in sxml
-        string?))
-      ([publisher 1] string?)
-      ([description (range 0 1)]
-       ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
-       string?)
-      ([subjects (range 0 1)]
-       ([subject (range 0 n)] ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
-                              string?))
-      ([contributors (range 0 1)]  ; list? vs implicit 'only what we list below is allowed'
-       ([contributor (range 0 n)]
-        ([@ 1] ([contributorType 1] string?))  ; member?
-        ([contributorName 1] string?)))
-      ([dates 1 #:restrictions ([(date (@ (dateType _ ))) 1])]  ; subtree restrictions for at most one
-       ;([dates 1]
-       ([date (range 1 n)
-              #:restrictions ([(@ (dateType "Updated")) (range 0 1) #:warn 0]
-                              [(@ (dateType "Submitted")) (range 0 1) #:warn 0])]
-        ([@ 1] ([dateType 1] date-type?))
-        iso8601-tz-string?))
-      ([resourceType 1]
-       ([@ 1]
-        ;([resourceTypeGeneral 1] (member? ,resource-type-generals))  ; TODO
-        ([resourceTypeGeneral 1] resource-type-general?))  ; TODO
-       ;([resourceTypeGeneral 1 member] [("Material"
-       ;"Software"
-       ;"Services") 1 null?]))  ; TODO
-       string?)
-      ([alternateIdentifiers 1]
-       ([alternateIdentifier (range 1 n)]
-        ([@ 1] ([alternateIdentifierType 1] string?))
-        (->? (@ (alternateIdentifierType _)))))
-      ;(value->predicate (@ (alternateIdentifierType _)))))
-      ([relatedIdentifiers
-        1
-        #:restrictions ([(@ (relationType "IsCompiledBy")) (range 0 n) #:warn 0]
-                        [(@ (relationType "IsIdenticalTo")) (range 0 n) #:warn 0]
-                        [(@ (relationType "IsDerivedFrom")) (range 0 n) #:warn 0])]
-       ([relatedIdentifier (range 1 n)]
+       ([*NAMESPACES* (range 0 1)]
+        ([(pattern *) (range 0 n)] uri?)))
+      ([resource 1]
+       ([@ (range 0 1)]
+        ([xmlns 1] rrid?)  ; FIXME eq? schem-url?
+        ([(pattern xmlns:*) (range 0 n)] uri?))
+       ([identifier 1]
+        ([@ 1]  ; this is the most consistent way to do it
+         ([identifierType 1] "RRID"))
+        rrid?)
+       ([properCitation 1]  ; TODO pc validator
+        ([@ 1] ([render-as 1] "Proper Citation")  ; this is the most consistent way to do it
+               ([type 1] "Inline Text Citation"))
+        string?)
+       ([titles 1]
+        ([title (range 1 n)]
+         ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?))  ; all terminals have only 1 instance in sxml
+         string?))
+       ([publisher 1] string?)
+       ([rightsList (range 0 1)]
+        ([rights 1])
+        )
+       ([description (range 0 1)]
+        ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
+        string?)
+       ([subjects (range 0 1)]
+        ([subject (range 0 n)] ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
+                               string?))
+       ([contributors (range 0 1)]  ; list? vs implicit 'only what we list below is allowed'
+        ([contributor (range 0 n)]
+         ([@ 1] ([contributorType 1] contributor-type?))  ; member?
+         ([contributorName 1] string?)))
+       ([dates 1 #:restrictions ([(date (@ (dateType _ ))) 1])]  ; subtree restrictions for at most one
+        ;([dates 1]
+        ([date (range 1 n)
+               #:restrictions ([(@ (dateType "Updated")) (range 0 1) #:warn 0]
+                               [(@ (dateType "Submitted")) (range 0 1) #:warn 0])]
+         ([@ 1] ([dateType 1] date-type?))
+         iso8601-tz-string?))
+       ([resourceType 1]
         ([@ 1]
-         ([relatedIdentifierType 1] related-identifier-type?)  ; FIXME inconsistent
-         ;([relationType 1] (member? ,relation-types))  ; TODO
-         ([relationType 1] relation-type?)  ; TODO
+         ;([resourceTypeGeneral 1] (member? ,resource-type-generals))  ; TODO
          ([resourceTypeGeneral 1] resource-type-general?))  ; TODO
-        (->? (@ (relatedIdentifierType _)))))))
-    ;(value->predicate (@ (relatedIdentifierType _)))))))
-    ))
+        ;([resourceTypeGeneral 1 member] [("Material"
+        ;"Software"
+        ;"Services") 1 null?]))  ; TODO
+        string?)
+       ([alternateIdentifiers 1]
+        ([alternateIdentifier (range 1 n)]
+         ([@ 1] ([alternateIdentifierType 1] string?))
+         (->? (@ (alternateIdentifierType _)))))
+       ;(value->predicate (@ (alternateIdentifierType _)))))
+       ([relatedIdentifiers
+         1
+         #:restrictions ([(@ (relationType "IsCompiledBy")) (range 0 n) #:warn 0]
+                         [(@ (relationType "IsIdenticalTo")) (range 0 n) #:warn 0]
+                         [(@ (relationType "IsDerivedFrom")) (range 0 n) #:warn 0])]
+        ([relatedIdentifier (range 1 n)]
+         ([@ 1]
+          ([relatedIdentifierType 1] related-identifier-type?)  ; FIXME inconsistent
+          ;([relationType 1] (member? ,relation-types))  ; TODO
+          ([relationType 1] relation-type?)  ; TODO
+          ([resourceTypeGeneral 1] resource-type-general?))  ; TODO
+         (->? (@ (relatedIdentifierType _)))))))
+     ;(value->predicate (@ (relatedIdentifierType _)))))))
+     )))
 
 ;(define ss (schema-structure))
 

@@ -32,6 +32,7 @@
    (antibody . #hash((url . "http://antibodyregistry.org")
                      (namespace . "http://antibodyregistry.org/")
                      (source . "Antibody Registry")
+                     ;(shoulder . "AB")
                      ;(fields . (catalogNumber))
                      (format . ("(~a Cat# ~a, ~a)" vendor catalogNumber identifier))
                      ;(subjects . (""))  ; TODO there are some potential additional things we could put here
@@ -48,6 +49,7 @@
    (digital . #hash((url . "https://scicrunch.org/browse/resourcedashboard")  ; can i just state that this is confusing as
                     (namespace . "http://uri.scicrunch.org/registry/")
                     (source .  "SciCrunch Registry")
+                    ;(shoulder . "SCR")
                     ;(fields . (resourceTypes))  ; TODO resource types via identifiers (from resources.ttl) RRIDTypeGeneral  ; FIXME this errors if not present
                     (format . ("(~a, ~a)" title identifier))))))
 
@@ -80,7 +82,7 @@
 (define (scr-rec #:title title
                  #:submitted submitted  ; TODO property sanity checkes eg submitted <= updated
                  #:updated updated
-                 #:resourceType resourceType  ; Database ... etc.
+                 #:resourceType resourceType  ; Database ... etc.  select value from resource_columns where name = 'Additional Resource Types' limit 10;
                  #:resourceTypeGeneral resourceTypeGeneral  ; Service or Software  (Documentation vs Protocol)
                  #:keywords subjects  ; this goes in the datacite subjects
                  #:url url
