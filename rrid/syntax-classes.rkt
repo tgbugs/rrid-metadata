@@ -122,6 +122,11 @@
     (pattern [(~or* -name name-pat)
               count-spec
               (~optional (~seq #:restrictions restriction))]
+
+             #:with :+inf.0 (datum->syntax this-syntax +inf.0)
+             #:with :0 (datum->syntax this-syntax 0)
+             #:with :1 (datum->syntax this-syntax 1)
+
              #:with internal-name (generate-temporary 'internal-name)  ; we need this so we can still use colon notation
              #:attr name (if (attribute -name)
                              (nsuf this-syntax #'-name)
@@ -150,8 +155,8 @@
                                    (pattern runtime-name
                                             #:fail-unless
                                             (let* ([p-s (string-split (symbol->string 'name-pat.name-pattern) "*" #:trim? #f)]
-                                                         [p (car p-s)]
-                                                         [s (cadr p-s)])
+                                                   [p (car p-s)]
+                                                   [s (cadr p-s)])
                                               (and (syntax->string-prefix? #'runtime-name p)
                                                    (syntax->string-suffix? #'runtime-name s)))
                                             "name did not match!"  ; TODO
@@ -174,6 +179,8 @@
              #:attr range (attribute count-spec.range)
              #:attr start (attribute count-spec.start)
              #:attr stop (attribute count-spec.stop)
+             #:attr start-value #'(~? count-spec.start :0) #;(if (attribute count-spec.start) #'count-spec.start #':0)
+             #:attr stop-value #'(~? count-spec.stop :+inf.0) #;(if (attribute count-spec.stop) #'count-spec.stop #':+inf.0)
              ; we can't actually do this inside of there becuase ~optional needs to wrap it
              ;#:attr racket (cond [(attribute count-spec.number) ; TODO name-pat
              ;#'name]
@@ -267,11 +274,11 @@
            #:with :+inf.0 (datum->syntax this-syntax +inf.0)
            #:with :0 (datum->syntax this-syntax 0)
            #:with :1 (datum->syntax this-syntax 1)
-           #:with :~between2 (if (and (attribute head.start) (attribute head.stop))
+           #:attr :~between2 (if (or (and (attribute head.start) (attribute head.stop))
+                                     (not (attribute head.stop)))
                               (datum->syntax this-syntax '~between)
-                              #f
-                              )
-           #:with :~optional2 (if (and (not (attribute head.start))
+                              #f)
+           #:attr :~optional2 (if (and (not (attribute head.start))
                                        (attribute head.stop)
                                        (= (syntax-e (attribute head.stop)) 1))
                                   (datum->syntax this-syntax '~optional)
@@ -292,6 +299,8 @@
            #:attr range (attribute head.range)
            #:attr head-stop (attribute head.stop)  ; TODO make sure this is simply false if n is specified
            #:attr head-start (attribute head.start)
+           #:attr head-stop-value (attribute head.stop-value)
+           #:attr head-start-value (attribute head.start-value)
 
            #:with (syntax-classes ...) (syntax/loc this-syntax
                                          ((~? head.sc-pat)
@@ -337,7 +346,7 @@
                                      (~? (~@ (:~alt body.repr-body-racket ...) :...)
                                          (~@ actual-body ...))
                                      (~? terminal.name))]  ; FIXME elip-type ???
-                                 [(attribute :~optional2) #'(name)]
+                                 [(or (attribute :~optional2) (attribute :~between2)) #'(name)]
                                  [else #f])
            #:attr racket #'(~? racket-s name)
            #;
@@ -349,12 +358,14 @@
             (pretty-write (list 'range?: (attribute range) (attribute head-start) (attribute head-stop)))
             (pretty-write (list ':~optional2-:~once (attribute :~optional2) (attribute :~once)))
             (pretty-write (list 'wat #'(~? (:~optional2 (~@ racket)) "U WOT M8")))
+            (pretty-write (list ':~between2 #'(~? (:~between2 racket head-start-value head-stop-value) "OOPS")))
             ]
            #:attr repr-body-racket #'(~? (:~once (~@ racket (~? elip-type)))
                                          (~? (:~optional2 (~@ racket (~? elip-type)))
-                                             (~? (:~between2 racket head-start head-stop)
+                                             (~? (:~between2 racket head-start-value head-stop-value)
                                                  racket)))
            ;#:do [(pretty-write (syntax->datum #'racket))]
+           ;#:do [(pretty-write (syntax->datum #'repr-body-racket))]
            )
   )
 

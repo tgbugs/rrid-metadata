@@ -1,5 +1,20 @@
 #lang racket/base
-(provide hr)
+(require
+ rackunit
+ racket/function
+ syntax/macro-testing
+ (for-syntax racket/base syntax/parse))
+(provide hr check-syntax-exn define-string-predicate)
+
+(define-syntax (check-syntax-exn stx)
+  (syntax-parse stx
+    [(_ body:expr)
+     (syntax/loc #'body (check-exn exn:fail:syntax? (thunk (convert-syntax-error body))))]))
+
+(define-syntax (define-string-predicate stx)
+    (syntax-parse stx
+      [(_ predicate:id string-to-match:string ...+)
+       #'(define (predicate value) (member value (list string-to-match ...)))]))
 
 (define (hr nested-hashes #:keys [keys-please #f] . keys)
   ; TODO just allow user to set #:keys and have that become true?

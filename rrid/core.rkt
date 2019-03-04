@@ -1,11 +1,13 @@
 #lang racket
 (require syntax/parse/debug)
 (define (not-null? thing) (not (null? thing)))
+#;
 (debug-syntax-parse!)
 (require net/url-string sxml ; atm only for the jats bit
          syntax/parse
          racket/pretty
          "syntax-classes.rkt"
+         (only-in "utils.rkt" define-string-predicate)
          (for-syntax syntax/parse
                      racket/syntax
                      racket/string
@@ -19,7 +21,8 @@
 
 (module+ test
   (require rackunit
-           syntax/macro-testing))
+           syntax/macro-testing
+           (only-in "utils.rkt" check-syntax-exn)))
 
 (provide make-gtr! set-add-rec! make-record schema-url sxml-schema define-syntax-class)
 
@@ -45,7 +48,9 @@
   (syntax-parse stx
     #:literals (stx-sxml)
     [(_ (~optional (~seq #:name syntax-name:id))
+        #;
         (~optional (~seq #:predicates predicate-let:sc-pred))
+        #;
         (~optional (~seq #:string->predicate string-let:sc-string-pred))
         schema:sc-body)
      ;(pretty-write `(ct-body-sc: ,(syntax->datum #'schema.syntax-classes)))
@@ -65,11 +70,16 @@
                                      [top-level  ; just validate, there may be better ways
                                       stx-sxml]))
      ;#:with string-let-lambda #'([(λ (value) (equal? string-let.string-value)) string-let.predicate] ...)
-     #:with lets (quasisyntax/loc stx (let (~? predicate-let ())
-                                        ; FIXME warn on duplicate predicates
-                                        (let (~? string-let.lambda-let ())
-                                          ;schema.syntax-classes ...
-                                          checker)))
+     #;
+     #:with
+     #;
+     lets
+     #;
+     (quasisyntax/loc stx (let (~? predicate-let ())
+                            ; FIXME warn on duplicate predicates
+                            (let (~? string-let.lambda-let ())
+                              ;schema.syntax-classes ...
+                              checker)))
      #:with defines #'(begin schema.syntax-classes ...)
      (when (attribute schema.range)
        (raise-syntax-error 'spec-error
@@ -128,10 +138,10 @@
               (~? (begin
                     schema.syntax-classes ...
                     (define (syntax-name sxml)
-                      lets))
+                      checker))
                   (λ (sxml)
                     schema.syntax-classes ...
-                    lets)
+                    checker)
                   ))])
 
        #;
@@ -158,7 +168,7 @@
   (test-optional '(top (optional-subtree)))
   )
 
-(module+ test 
+(module+ test
   (check-equal? (syntax->datum ((sxml-schema ([tag 1])) '(tag))) '(tag))
   (check-exn exn:fail:syntax? (thunk (convert-syntax-error ((sxml-schema ([tag 1])) '(not-tag)))))  ; it is normal to see debug on this
 
@@ -214,81 +224,44 @@
   #;
   (test2 '(a:hello (b:there "wat")))
   ;(test2 '(a:* (b:* "wat") (b:* "wat")))  ; now failing correclty
-  #;
   (let ([schema (sxml-schema ([tag 1] ([tag2 (range 0 1)] string?) integer?))])
     (schema '(tag (tag2 "thing") 109219))
     (schema '(tag 109219)))  ; FIXME have to insert the optional here...
     )
-#;
+
 (module+ test
-
-
-  (sxml-schema #:name fail-test ([TOP 1] ([a (range 0 n)])
-                                         ([b (range 0 n)])))
-
-  (fail-test '(TOP (a)))
-  (fail-test '(TOP (b)))
-  (fail-test '(TOP (a) (b)))
-  (fail-test '(TOP (b) (a)))
-  (fail-test '(TOP (a) (b) (b) (a)))
-
-  (sxml-schema #:name sigh ([TOP 1] ([a 1]) ([b 1])))
-  (sigh '(TOP (a) (b)))
-  (sigh '(TOP (b) (a)))
-
   (sxml-schema #:name sigh2 ([TOP 1] ([a (range 1 n)]) ([b (range 0 n)])))
   (sigh2 '(TOP (a)))
   (sigh2 '(TOP (a) (b)))
   (sigh2 '(TOP (b) (a)))
-  ;(sigh2 '(TOP (b)))  ; should fail  and now does
-    )#;(
+  (check-exn exn:fail:syntax? (thunk (convert-syntax-error 
+                                      (sigh2 '(TOP (b))))))
+    )
 
+(module+ test
+  (sxml-schema #:name test-multi-optional
+               ([TOP 1] ([a (range 0 n)])
+                        ([b (range 0 n)])))
 
-        (define (fail-test-e sxml)
-          (let ([stx-sxml (datum->syntax #f sxml)])
-            (syntax-parse stx-sxml
-              #:disable-colon-notation
-              #:datum-literals (TOP a b)
-              [#;(TOP ((~alt (~optional a)
-                             (~optional b)) ...))
-               #;(TOP (~or* (a) (b)  ; this works if both are optional
-                            
-                            ) ...)
-               ;(TOP ((~or* a b)) ...)  ; more compact if all are optional
-               #;(TOP (~alt (~optional (a "a"))  ; this one isn't quite right but closer
-                            (~optional (b "b")))
-                      ...
-                      )
-               ;(TOP (~or* (a "a") (b "b")) ...)  ; again only if optional
-               ;(TOP (~or* (~once (a "a")) (b "b")) ...)
-               ;(TOP (~seq (~optional (a "a")) (~optional (b "b"))) ... )
-               #;(TOP (~alt (~between (a "a") 1 +inf.0)  ; (~optional ) +inf.0 makes this hang as is should
-                            ; this version means there must always be 1 a...
-                            (~optional (b "b"))) ...
-                      )
-               (TOP (~alt (~between (a "a") 1 +inf.0)
-                          (~between (b "b") 0 +inf.0)) ...)
-               ; apparently these two are not equivalent...
-               #;(TOP (~alt (~seq (a "a") ...+)
-                            (~seq (b "b") ...)
-                            ) ...)
-               stx-sxml]))
-          sxml
-          )
+  (test-multi-optional '(TOP))
+  (test-multi-optional '(TOP (a)))
+  (test-multi-optional '(TOP (b)))
+  (test-multi-optional '(TOP (a) (b)))
+  (test-multi-optional '(TOP (b) (a)))
+  (test-multi-optional '(TOP (a) (b) (b) (a))))
 
-        ; today we learned about #:datum-literals and that ~optional means max 1
+(module+ test
+  (sxml-schema #:name test-multi-exact ([TOP 1] ([a 1]) ([b 1])))
+  (test-multi-exact '(TOP (a) (b)))
+  (test-multi-exact '(TOP (b) (a)))
+  (check-syntax-exn (test-multi-exact '(TOP (a))))
+  (check-syntax-exn (test-multi-exact '(TOP (a) (a))))
+  (check-syntax-exn (test-multi-exact '(TOP (a) (b) (a))))
+  (check-syntax-exn (test-multi-exact '(TOP (b))))
+  (check-syntax-exn (test-multi-exact '(TOP (b) (b))))
+  (check-syntax-exn (test-multi-exact '(TOP (b) (a) (b))))
+  )
 
-        ;(fail-test-e '(TOP))  ; FIXME sigh...
-        (fail-test-e '(TOP (a "a")))
-        (fail-test-e '(TOP (b "b") (a "a")))  ; FIXME fails when it should not
-        (fail-test-e '(TOP (a "a") (b "b") (b "b")))
-        ;(fail-test-e '(TOP (b "b")))
-        ;(fail-test-e '(TOP (a b)))  ; so this is how alt works?
-        (fail-test-e '(TOP (a "a") (b "b") (b "b") (a "a")))
-        (fail-test-e '(TOP (b "b") (a "a") (a "a")))  ; FIXME fails when it should not
-        )
-
-#;
 (module+ test
     ; FIXME FIXME LOOK HERE
     ; FIXME I think we want this to translate into (~or* (~optional 1) (~optional 2)) ...
@@ -296,98 +269,123 @@
                                                  ([(pattern *body2) (range 0 n)] "general nobody")
                                                  ;null)) ; FIXME this should fail? null isn't a predicate
                                                  #;null?))
-    #;(~seq (~or* (~optional (interna-name2 "hello there"))
-                  (~optional (interna-name2 "general nobody"))) ...)
+    #;
+    (~seq (~or* (~optional (interna-name2 "hello there"))
+                (~optional (interna-name2 "general nobody"))) ...)
 
     (multi-body-test `(TOP (a-body1 "hello there")
                            (b-body1 "hello there")
                            (body2 "general nobody")))  ; null doesn't work in quotes
 
-    #;(define (multi-body-test sxml)
-        (define-syntax TOP #'pls-go)
-        (define-syntax-class
-          *body1-c
-          #:disable-colon-notation
-          (pattern
-           runtime-name
-           #:do
-           ((let* ((p-s (string-split (symbol->string '*body1) "*" #:trim? #f))
-                   (p (car p-s))
-                   (s (cadr p-s)))
-              (unless (and
-                       (syntax->string-prefix? #'runtime-name p)
-                       (syntax->string-suffix? #'runtime-name s))
-                (println
-                 (list 'failtime: p-s p s #'runtime-name
-                       (syntax->string-prefix? #'runtime-name p)
-                       (syntax->string-suffix? #'runtime-name s)))
-                (raise-syntax-error
-                 'bad-structure
-                 (format
-                  "expected ~a got ~a"
-                  '*body1
-                  (syntax->datum #'runtime-name))))))))
-        (define-syntax-class
-          *body2-e
-          #:disable-colon-notation
-          (pattern
-           runtime-name
-           #:do
-           ((let* ((p-s (string-split (symbol->string '*body2) "*" #:trim? #f))
-                   (p (car p-s))
-                   (s (cadr p-s)))
-              (unless (and
-                       (syntax->string-prefix? #'runtime-name p)
-                       (syntax->string-suffix? #'runtime-name s))
-                (println
-                 (list
-                  'failtime:
-                  p-s
-                  p
-                  s
-                  #'runtime-name
-                  (syntax->string-prefix? #'runtime-name p)
-                  (syntax->string-suffix? #'runtime-name s)))
-                (raise-syntax-error
-                 'bad-structure
-                 (format
-                  "expected ~a got ~a"
-                  '*body2
-                  (syntax->datum #'runtime-name))))))))
-        (define-syntax-class
-          termsc-g
-          (pattern
-           runtime-value
-           #:do
-           ((unless (null? (syntax->datum #'runtime-value))
+    #;
+    (define (multi-body-test sxml)
+      (define-syntax TOP #'pls-go)
+      (define-syntax-class
+        *body1-c
+        #:disable-colon-notation
+        (pattern
+         runtime-name
+         #:do
+         ((let* ((p-s (string-split (symbol->string '*body1) "*" #:trim? #f))
+                 (p (car p-s))
+                 (s (cadr p-s)))
+            (unless (and
+                     (syntax->string-prefix? #'runtime-name p)
+                     (syntax->string-suffix? #'runtime-name s))
+              (println
+               (list 'failtime: p-s p s #'runtime-name
+                     (syntax->string-prefix? #'runtime-name p)
+                     (syntax->string-suffix? #'runtime-name s)))
               (raise-syntax-error
                'bad-structure
                (format
-                "TODO ~a not a ~a"
-                (syntax->datum #'runtime-value)
-                (symbol->string 'null?)))))))
-        (let ((stx-sxml (datum->syntax #f sxml)))
-          (syntax-parse
-              stx-sxml
-            #:disable-colon-notation
-            #:literals (TOP)
-            #:local-conventions
-            (
-             (internal-name2 *body1-c)
-             (internal-name2b *body1-c)
+                "expected ~a got ~a"
+                '*body1
+                (syntax->datum #'runtime-name))))))))
+      (define-syntax-class
+        *body2-e
+        #:disable-colon-notation
+        (pattern
+         runtime-name
+         #:do
+         ((let* ((p-s (string-split (symbol->string '*body2) "*" #:trim? #f))
+                 (p (car p-s))
+                 (s (cadr p-s)))
+            (unless (and
+                     (syntax->string-prefix? #'runtime-name p)
+                     (syntax->string-suffix? #'runtime-name s))
+              (println
+               (list
+                'failtime:
+                p-s
+                p
+                s
+                #'runtime-name
+                (syntax->string-prefix? #'runtime-name p)
+                (syntax->string-suffix? #'runtime-name s)))
+              (raise-syntax-error
+               'bad-structure
+               (format
+                "expected ~a got ~a"
+                '*body2
+                (syntax->datum #'runtime-name))))))))
+      (define-syntax-class
+        termsc-g
+        (pattern
+         runtime-value
+         #:do
+         ((unless (null? (syntax->datum #'runtime-value))
+            (raise-syntax-error
+             'bad-structure
+             (format
+              "TODO ~a not a ~a"
+              (syntax->datum #'runtime-value)
+              (symbol->string 'null?)))))))
+      (let ((stx-sxml (datum->syntax #f sxml)))
+        (syntax-parse
+            stx-sxml
+          #:disable-colon-notation
+          #:literals (TOP)
+          #:local-conventions
+          (
+           (internal-name2 *body1-c)
+           (internal-name2b *body1-c)
 
-             (internal-name3 *body2-e))
-            ((TOP
-              (internal-name2 "hello there")
-              (internal-name2b "hello there")
-              (internal-name3 "general nobody")
-              )
-             stx-sxml)))
-        sxml)
-
-
+           (internal-name3 *body2-e))
+          ((TOP
+            (internal-name2 "hello there")
+            (internal-name2b "hello there")
+            (internal-name3 "general nobody")
+            )
+           stx-sxml)))
+      sxml)
     )
-#;
+
+(module+ test
+  ; test custom predicates
+  ; remove the #:predicates section, it makes more sense to
+  ; let people define their predicate functions however they like
+  ; yes, it means custom predicates could come from anywhere, but
+  ; that is probably a reasonable tradeoff w/ readability
+  (define predicate? (λ (value) #t))
+  (define my-string? string?)
+  (define-string-predicate my-type-string? "myType")
+  (sxml-schema
+   ([tag 1] ([a 1] predicate?) ([b (range 0 n)] my-type-string?) my-type-string?))
+  (sxml-schema ([tag 1] "value"))
+  (sxml-schema ([tag 1] ([tag2 (range 0 1)] "value2") "value"))
+
+  (sxml-schema
+   ([tag 1]
+    ([tag2 (range 0 1)] "value2")
+    ([tag3 (range 0 n)] predicate?)
+    "value"))
+
+  ;(define (thing? value) (equal? value "thing"))
+  (define-string-predicate thing? "thing")
+  (sxml-schema ([t1 1] ([t2 1] thing?)))
+ )
+
 (module+ test 
   (define-syntax (test-negative stx)
     (syntax-parse stx
@@ -408,21 +406,21 @@
   (sxml-schema #:name deep-nesting ([a 1] ([b 1] ([c 1] ([d 1] ([e 1] ([f 1] "g")
                                                                       ([x 1] string?)
                                                                       ([h 1] "i")))))))
-  (test-negative (assert (test-negative (sxml-schema ([tag 1])))))  ; ah the old doulb test negative... will still break silently
+  (check-exn exn:fail? (thunk (check-syntax-exn (sxml-schema ([tag 1])))))  ; ah the old doulb test negative... will still break silently
   (check-exn exn:fail:syntax? (thunk (convert-syntax-error (sxml-schema ()))))
-  (assert (test-negative (sxml-schema ([]))))
-  (assert (test-negative (sxml-schema ([tag]))))
-  (assert (test-negative (sxml-schema ([tag 0]))))
-  (assert (test-negative (sxml-schema ([tag (range 0 1)]))))
+  (check-syntax-exn (sxml-schema ([])))
+  (check-syntax-exn (sxml-schema ([tag])))
+  (check-syntax-exn (sxml-schema ([tag 0])))
+  (check-syntax-exn (sxml-schema ([tag (range 0 1)])))
   ((sxml-schema ([tag 1])) '(tag))
-  (assert (test-negative ((sxml-schema ([tag 1])) '(not-tag))))  ; fails as expected
+  (check-syntax-exn ((sxml-schema ([tag 1])) '(not-tag)))  ; fails as expected
   ((sxml-schema ([tag 1] 0)) '(tag 0))
-  (assert (test-negative ((sxml-schema ([tag 1] 0)) '(tag))))  ; fails as expected
+  (check-syntax-exn ((sxml-schema ([tag 1] 0)) '(tag)))  ; fails as expected
   ((sxml-schema ([tag 1] "")) '(tag ""))
   ((sxml-schema ([tag 1] ([tag2 1] 0) 0)) '(tag (tag2 0) 0))
   (sxml-schema ([tag 1] ([tag2 (range 0 1)] 0) 0))
-  (assert (test-negative (sxml-schema ([tag 1] 0 ""))))  ; fails as expected
-  (assert (test-negative (sxml-schema ([tag 1] "" 0))))  ; fails as expected
+  (check-syntax-exn (sxml-schema ([tag 1] 0 "")))  ; fails as expected
+  (check-syntax-exn (sxml-schema ([tag 1] "" 0)))  ; fails as expected
 
   ;(sxml-schema ([tag 1] '0))  ; TODO do we want to allow this?
   #;((sxml-schema ([tag 1] list?))
@@ -432,47 +430,32 @@
     (schema '(tag 109219)))
   (sxml-schema ([tag 1] ([tag2 (range 0 1)] ([tag3 1] symbol?) "ok") string?))
   (sxml-schema ([tag 1] ([tag2 (range 0 1)] ([tag3 1] symbol?)) string?))
-  (assert (test-negative (sxml-schema ([(pattern1 prefix:*) 1]))))  ; fails as expected
+  (check-syntax-exn (sxml-schema ([(pattern1 prefix:*) 1])))  ; fails as expected
   (sxml-schema ([(pattern prefix:*) 1]))
   (let ([schema (sxml-schema ([*TOP* 1]
                               ([@ (range 0 1)]
                                ([*NAMESPACES* (range 0 1)] 10))))])
-    (assert (test-negative (schema '(*TOP* (@ (*NAMESPACES* 9))))))
+    (check-syntax-exn (schema '(*TOP* (@ (*NAMESPACES* 9)))))
     (schema '(*TOP* (@ (*NAMESPACES* 10)))))
-  (sxml-schema
-   #:predicates ([predicate? (λ (value) #t)]
-                 [my-string? string?])
-   #:string->predicate (["myType" my-string?])  ; FIXME should fail?
-   ([tag 1] ([a 1] predicate?) ([b (range 0 n)] my-string?) my-string?))
-  (sxml-schema ([tag 1] "value"))
-  (sxml-schema ([tag 1] ([tag2 (range 0 1)] "value2") "value"))
-  (sxml-schema
-   #:predicates ([predicate? (λ (value) #t)])
-   ([tag 1]
-    ([tag2 (range 0 1)] "value2")
-    ([tag3 (range 0 n)] predicate?)
-    "value"))
-
-  (sxml-schema #:string->predicate (["thing" thing?]) ([t1 1] ([t2 1] thing?)))
 
   (sxml-schema #:name test-pred ([top 1] ([head (range 1 n)] string?)))
   (test-pred '(top (head "anything") (head "anything2")))
-  (assert (test-negative (test-pred '(top (head "anything") (head 'not-a-string)))))  ; fails as expected
+  (check-syntax-exn (test-pred '(top (head "anything") (head 'not-a-string))))  ; fails as expected
   (sxml-schema #:name test1 ([top 1] ([yeee (range 0 n)] "wat")))
-  (assert (test-negative (test1 '(top (yeee) (yeee)))))  ; fails as expected
+  (check-syntax-exn (test1 '(top (yeee) (yeee))))  ; fails as expected
   (test1 '(top (yeee "wat") (yeee "wat")))
   (sxml-schema #:name test2.1 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
-  (assert (test-negative (test2.1 '(a:* (b:*))))) ; fails as expected
-  (assert (test-negative (test2.1 '(a:* (b:* "not wat")))))  ; fails as expected
-  (assert (test-negative (test2.1 '(should (fail "wat")))))  ; fails as expected
-  (assert (test-negative (test2.1 '(should (fail "and does")))))
+  (check-syntax-exn (test2.1 '(a:* (b:*)))) ; fails as expected
+  (check-syntax-exn (test2.1 '(a:* (b:* "not wat"))))  ; fails as expected
+  (check-syntax-exn (test2.1 '(should (fail "wat"))))  ; fails as expected
+  (check-syntax-exn (test2.1 '(should (fail "and does"))))
   (test2.1 '(a:* (b:* "wat")))
-  (assert (test-negative (test2.1 '(a:* (b:* "wat") (b:* "wat")))))  ; fails as expected
+  (check-syntax-exn (test2.1 '(a:* (b:* "wat") (b:* "wat"))))  ; fails as expected
   (sxml-schema #:name test3 ([(pattern a:*) 1] ([(pattern b:*) (range 0 n)] "wat")))  ; test for duplicate pattern defs
   (test3 '(a:* (b:* "wat") (b:* "wat")))
   (test3 '(a:hello (b:there "wat")))
-  (assert (test-negative (test3 '(b:hello (a:there "wat"))))) ; failes as expected
-  (sxml-schema #:name thing ([TOP 1] ([asdf (range 0 n)] "hello there")))
+  (check-syntax-exn (test3 '(b:hello (a:there "wat")))) ; failes as expected
+  (sxml-schema #:name thing2 ([TOP 1] ([asdf (range 0 n)] "hello there")))
 
   ((sxml-schema ([tag 1] ([tag2 1 #:restrictions ([(tag3 _) 1])]  ; _ says that we don't care what tag3 says about itself we require 1
                           ; FIXME currently we can't define a tag once and use it by name in many different places...
@@ -485,7 +468,51 @@
    '(tag (tag2)))
   )
 
+#;
+(module+ test
+ (define (fail-test-e sxml)
+   (let ([stx-sxml (datum->syntax #f sxml)])
+     (syntax-parse stx-sxml
+       #:disable-colon-notation
+       #:datum-literals (TOP a b)
+       [#;(TOP ((~alt (~optional a)
+                      (~optional b)) ...))
+        #;(TOP (~or* (a) (b)  ; this works if both are optional
+                     
+                     ) ...)
+        ;(TOP ((~or* a b)) ...)  ; more compact if all are optional
+        #;(TOP (~alt (~optional (a "a"))  ; this one isn't quite right but closer
+                     (~optional (b "b")))
+               ...
+               )
+        ;(TOP (~or* (a "a") (b "b")) ...)  ; again only if optional
+        ;(TOP (~or* (~once (a "a")) (b "b")) ...)
+        ;(TOP (~seq (~optional (a "a")) (~optional (b "b"))) ... )
+        #;(TOP (~alt (~between (a "a") 1 +inf.0)  ; (~optional ) +inf.0 makes this hang as is should
+                     ; this version means there must always be 1 a...
+                     (~optional (b "b"))) ...
+               )
+        (TOP (~alt (~between (a "a") 1 +inf.0)
+                   (~between (b "b") 0 +inf.0)) ...)
+        ; apparently these two are not equivalent...
+        #;(TOP (~alt (~seq (a "a") ...+)
+                     (~seq (b "b") ...)
+                     ) ...)
+        stx-sxml]))
+   sxml
+   )
 
+ ; today we learned about #:datum-literals and that ~optional means max 1
+
+ ;(fail-test-e '(TOP))  ; FIXME sigh...
+ (fail-test-e '(TOP (a "a")))
+ (fail-test-e '(TOP (b "b") (a "a")))  ; FIXME fails when it should not
+ (fail-test-e '(TOP (a "a") (b "b") (b "b")))
+ ;(fail-test-e '(TOP (b "b")))
+ ;(fail-test-e '(TOP (a b)))  ; so this is how alt works?
+ (fail-test-e '(TOP (a "a") (b "b") (b "b") (a "a")))
+ (fail-test-e '(TOP (b "b") (a "a") (a "a")))  ; FIXME fails when it should not
+        )
 
 ;; utility
 
@@ -547,125 +574,124 @@
 ;(define-syntax-parser #%node-spec
 ;[(_ a b c)])
 
+;;; primary schema definition
 (require (only-in srfi/19 string->date))
-(define (schema-structure) ;(define-schema-structure  ; TODO hrm...
-  #|
-  structure validation syntax
-  element : ssexp symbol
-  symbol : SYMBOL
-  ssexp : '( symbol-restrict ssexp ') | racket-sexp
-  symbol-restrict : '[ u-sym-m int-or-range child-is-pred* (#:warn-missing expected-sub-tree-patterns)* ']
-  u-sym-m : _ | symbol | pattern-expression
-  int-or-range : INTEGER | range-expression
-  range-expression : '( 'range 0-1 int>prev-or-n ')
-  0-1 : 0 | 1
-  int>prev-or-n : INTEGER | n  ; must test INTEGER > 0-1
-  child-is-pred : racket-predicate  ; must test explicitly whether absense is valid in context
-  |#
-  (let
-      ; TODO pull these out
-      ([resource-type-generals '("Material" "Software" "Service")]
-       [relation-types '("IsCompiledBy"
+
+#|
+structure validation syntax
+element : ssexp symbol
+symbol : SYMBOL
+ssexp : '( symbol-restrict ssexp ') | racket-sexp
+symbol-restrict : '[ u-sym-m int-or-range child-is-pred* (#:warn-missing expected-sub-tree-patterns)* ']
+u-sym-m : _ | symbol | pattern-expression
+int-or-range : INTEGER | range-expression
+range-expression : '( 'range 0-1 int>prev-or-n ')
+0-1 : 0 | 1
+int>prev-or-n : INTEGER | n  ; must test INTEGER > 0-1
+child-is-pred : racket-predicate  ; must test explicitly whether absense is valid in context
+|#
+; TODO pull these out
+[define resource-type-generals '("Material" "Software" "Service")]
+[define relation-types '("IsCompiledBy"
                          "IsIdenticalTo"
                          "IsDerivedFrom"
                          "IsDescribedBy"
                          "Describes"
                          "Other")]
-       [contributor-types '(
-                            "Distributor"  ; antibody vendors
+[define contributor-types '("Distributor"  ; antibody vendors
                             "Producer"  ; individual personal antibody maker
                             "Other"  ; antibody vendor "synonyms" aka acquired companies
                             "HostingInstitution"  ; parrent organization (see if this fits)
                             "RegistrationAgency"
-                            "RegistrationAuthority"
+                            "RegistrationAuthority")]
+[define xml-langs '("en-US")]
+[define hit-the-database (λ (value) "totally going to the database I swear" #t)]
+[define check-remote #f]
 
-                            )]
-       [xml-langs '("en-US")]
-       [hit-the-database (λ (value) "totally going to the database I swear" #t)]
-       [check-remote #f])
-    '(sxml-schema
-     #:predicates ([related-identifier-type? (λ (value) (member value '("URL" "DOI")))]
-                   [resource-type-general? (λ (value) (member value resource-type-generals))]
-                   [iso8601-tz-string? (λ (value) (string->date value "~Y-~M-~DT~TZ"))]  ; TODO make more predicate like...
-                   [contributor-type? (λ (value) (member value contributor-types))]
-                   [relation-type? (λ (value) (member value relation-types))]
-                   [date-type? (λ (value) (member value '("Submitted" "Updated")))]
-                   [xml-lang? (λ (value) (member value xml-langs))]
-                   [rrid? (λ (value) (if check-remote (hit-the-database value) (string-prefix? value "RRID:")))]
-                   [uri? (λ (value) (regexp-match url-regexp value))]
-                   )
-     #:string->predicate (["DOI" doi?] ["RRID" rrid?] ["URL" uri?])
-     ([nothing 1])
-     ([*TOP* 1]
-      ([@ (range 0 1)]
-       ([*NAMESPACES* (range 0 1)]
-        ([(pattern *) (range 0 n)] uri?)))
-      ([resource 1]
-       ([@ (range 0 1)]
-        ([xmlns 1] rrid?)  ; FIXME eq? schem-url?
-        ([(pattern xmlns:*) (range 0 n)] uri?))
-       ([identifier 1]
-        ([@ 1]  ; this is the most consistent way to do it
-         ([identifierType 1] "RRID"))
-        rrid?)
-       ([properCitation 1]  ; TODO pc validator
-        ([@ 1] ([render-as 1] "Proper Citation")  ; this is the most consistent way to do it
-               ([type 1] "Inline Text Citation"))
-        string?)
-       ([titles 1]
-        ([title (range 1 n)]
-         ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?))  ; all terminals have only 1 instance in sxml
-         string?))
-       ([publisher 1] string?)
-       ([rightsList (range 0 1)]
-        ([rights 1])
-        )
-       ([description (range 0 1)]
-        ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
-        string?)
-       ([subjects (range 0 1)]
-        ([subject (range 0 n)] ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
-                               string?))
-       ([contributors (range 0 1)]  ; list? vs implicit 'only what we list below is allowed'
-        ([contributor (range 0 n)]
-         ([@ 1] ([contributorType 1] contributor-type?))  ; member?
-         ([contributorName 1] string?)))
-       ([dates 1 #:restrictions ([(date (@ (dateType _ ))) 1])]  ; subtree restrictions for at most one
-        ;([dates 1]
-        ([date (range 1 n)
-               #:restrictions ([(@ (dateType "Updated")) (range 0 1) #:warn 0]
-                               [(@ (dateType "Submitted")) (range 0 1) #:warn 0])]
-         ([@ 1] ([dateType 1] date-type?))
-         iso8601-tz-string?))
-       ([resourceType 1]
-        ([@ 1]
-         ;([resourceTypeGeneral 1] (member? ,resource-type-generals))  ; TODO
-         ([resourceTypeGeneral 1] resource-type-general?))  ; TODO
-        ;([resourceTypeGeneral 1 member] [("Material"
-        ;"Software"
-        ;"Services") 1 null?]))  ; TODO
-        string?)
-       ([alternateIdentifiers 1]
-        ([alternateIdentifier (range 1 n)]
-         ([@ 1] ([alternateIdentifierType 1] string?))
-         (->? (@ (alternateIdentifierType _)))))
-       ;(value->predicate (@ (alternateIdentifierType _)))))
-       ([relatedIdentifiers
-         1
-         #:restrictions ([(@ (relationType "IsCompiledBy")) (range 0 n) #:warn 0]
-                         [(@ (relationType "IsIdenticalTo")) (range 0 n) #:warn 0]
-                         [(@ (relationType "IsDerivedFrom")) (range 0 n) #:warn 0])]
-        ([relatedIdentifier (range 1 n)]
-         ([@ 1]
-          ([relatedIdentifierType 1] related-identifier-type?)  ; FIXME inconsistent
-          ;([relationType 1] (member? ,relation-types))  ; TODO
-          ([relationType 1] relation-type?)  ; TODO
-          ([resourceTypeGeneral 1] resource-type-general?))  ; TODO
-         (->? (@ (relatedIdentifierType _)))))))
-     ;(value->predicate (@ (relatedIdentifierType _)))))))
-     )))
+(define (related-identifier-type? value) (member value '("URL" "DOI")))
+(define (resource-type-general? value) (member value resource-type-generals))
+(define (iso8601-tz-string? value) (string->date value "~Y-~M-~DT~TZ"))  ; TODO make more predicate like...
+(define (contributor-type? value) (member value contributor-types))
+(define (relation-type? value) (member value relation-types))
+(define (date-type? value) (member value '("Submitted" "Updated")))
+(define (xml-lang? value) (member value xml-langs))
+(define (rrid? value) (if check-remote (hit-the-database value) (string-prefix? value "RRID:")))
+(define (uri? value) (regexp-match url-regexp value))
 
-;(define ss (schema-structure))
+(define-string-predicate doi? "DOI")  ; not entirely sure why I had these implemented as I did in the first place ...
+(define-string-predicate RRID? "RRID")
+(define-string-predicate URI? "URI")
+
+(sxml-schema
+ #:name rrid-schema
+ ([*TOP* 1]
+  ([@ (range 0 1)]
+   ([*NAMESPACES* (range 0 1)]
+    ([(pattern *) (range 0 n)] uri?)))
+  ([resource 1]
+   ([@ (range 0 1)]
+    ([xmlns 1] rrid?)  ; FIXME eq? schem-url?
+    ([(pattern xmlns:*) (range 0 n)] uri?))
+   ([identifier 1]
+    ([@ 1]  ; this is the most consistent way to do it
+     ([identifierType 1] "RRID"))
+    rrid?)
+   ([properCitation 1]  ; TODO pc validator
+    ([@ 1] ([render-as 1] "Proper Citation")  ; this is the most consistent way to do it
+           ([type 1] "Inline Text Citation"))
+    string?)
+   ([titles 1]
+    ([title (range 1 n)]
+     ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?))  ; all terminals have only 1 instance in sxml
+     string?))
+   ([publisher 1] string?)
+   ([rightsList (range 0 1)]
+    ([rights 1])
+    )
+   ([description (range 0 1)]
+    ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
+    string?)
+   ([subjects (range 0 1)]
+    ([subject (range 0 n)] ([@ (range 0 1)] ([xml:lang (range 0 1)] xml-lang?)) 
+                           string?))
+   ([contributors (range 0 1)]  ; list? vs implicit 'only what we list below is allowed'
+    ([contributor (range 0 n)]
+     ([@ 1] ([contributorType 1] contributor-type?))  ; member?
+     ([contributorName 1] string?)))
+   ([dates 1 #:restrictions ([(date (@ (dateType _ ))) 1])]  ; subtree restrictions for at most one
+    ;([dates 1]
+    ([date (range 1 n)
+           #:restrictions ([(@ (dateType "Updated")) (range 0 1) #:warn 0]
+                           [(@ (dateType "Submitted")) (range 0 1) #:warn 0])]
+     ([@ 1] ([dateType 1] date-type?))
+     iso8601-tz-string?))
+   ([resourceType 1]
+    ([@ 1]
+     ;([resourceTypeGeneral 1] (member? ,resource-type-generals))  ; TODO
+     ([resourceTypeGeneral 1] resource-type-general?))  ; TODO
+    ;([resourceTypeGeneral 1 member] [("Material"
+    ;"Software"
+    ;"Services") 1 null?]))  ; TODO
+    string?)
+   ([alternateIdentifiers 1]
+    ([alternateIdentifier (range 1 n)]
+     ([@ 1] ([alternateIdentifierType 1] string?))
+     (->? (@ (alternateIdentifierType _)))))
+   ;(value->predicate (@ (alternateIdentifierType _)))))
+   ([relatedIdentifiers
+     1
+     #:restrictions ([(@ (relationType "IsCompiledBy")) (range 0 n) #:warn 0]
+                     [(@ (relationType "IsIdenticalTo")) (range 0 n) #:warn 0]
+                     [(@ (relationType "IsDerivedFrom")) (range 0 n) #:warn 0])]
+    ([relatedIdentifier (range 1 n)]
+     ([@ 1]
+      ([relatedIdentifierType 1] related-identifier-type?)  ; FIXME inconsistent
+      ;([relationType 1] (member? ,relation-types))  ; TODO
+      ([relationType 1] relation-type?)  ; TODO
+      ([resourceTypeGeneral 1] resource-type-general?))  ; TODO
+     (->? (@ (relatedIdentifierType _)))))))
+ ;(value->predicate (@ (relatedIdentifierType _)))))))
+ )
 
 (define (record-format
          #:id primary-id
