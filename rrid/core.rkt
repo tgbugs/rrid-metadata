@@ -398,7 +398,7 @@ child-is-pred : racket-predicate  ; must test explicitly whether absense is vali
 
 (define (related-identifier-type? value) (member value '("URL" "DOI")))
 (define (resource-type-general? value) (member value resource-type-generals))
-(define (iso8601-tz-string? value) (string->date value "~Y-~M-~DT~TZ"))  ; TODO make more predicate like...
+(define (iso8601-tz-string? value) (string->date value "~Y-~M-~dT~H:~M:~S+"))  ; TODO make more predicate like... FIXME broken ...
 (define (contributor-type? value) (member value contributor-types))
 (define (relation-type? value) (member value relation-types))
 (define (date-type? value) (member value '("Submitted" "Updated")))
@@ -418,7 +418,7 @@ child-is-pred : racket-predicate  ; must test explicitly whether absense is vali
     ([(pattern *) (range 0 n)] uri?)))
   ([resource 1]
    ([@ (range 0 1)]
-    ([xmlns 1] rrid?)  ; FIXME eq? schem-url?
+    ([xmlns 1] uri?)  ; FIXME eq? schem-url?
     ([(pattern xmlns:*) (range 0 n)] uri?))
    ([identifier 1]
     ([@ 1]  ; this is the most consistent way to do it
@@ -501,7 +501,7 @@ child-is-pred : racket-predicate  ; must test explicitly whether absense is vali
   ; note that we are closer to a physical sample use case than a publishing use case
   `(*TOP*
     ;(*PI* xml-stylesheet "href=\"#style\" type=\"text/css\"");(@ (href "#style") (type "text/css")))
-    (@ (*NAMESPACES* (rridType "http://scicrunch.org/resources/schema/rrid-type-0")))
+    (@ (*NAMESPACES* (rridType "http://scicrunch.org/resources/schema/rrid-core-0")))
     ,(filter-empty
       `(resource
         ;(extras (@ (id "style"))  ; this doesn't really work as desired
@@ -755,7 +755,6 @@ child-is-pred : racket-predicate  ; must test explicitly whether absense is vali
   (set-gtr! gtr)
   (void))
 
-#;
 (module+ test
   (require "database.rkt")
   (require "sources.rkt")
@@ -770,4 +769,4 @@ child-is-pred : racket-predicate  ; must test explicitly whether absense is vali
                             #:insert_time 1111111111
                             #:curate_time 1222222222
                             #:something "We need this for the proper citation")))
-  ((schema-structure) rec))
+  (rrid-schema rec))

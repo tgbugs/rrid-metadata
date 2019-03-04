@@ -215,7 +215,8 @@
                                     (pattern runtime-value:expr
                                              #:fail-unless
                                              (predicate (syntax->datum #'runtime-value))
-                                             "TODO runtime value does not match predicate!"
+                                             (format "TODO runtime-value ~a does not match predicate ~a!"
+                                                     (syntax->datum #'runtime-value) predicate)
                                              #;
                                              #:do
                                              #;
