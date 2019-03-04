@@ -141,15 +141,6 @@
                               )
              #:attr sc-pat (if (attribute -name)
                                #f
-                               #;
-                               #'(define-syntax-class name
-                                   #:disable-colon-notation
-                                   (pattern runtime-name
-                                            #:do [(unless (eq? '-name (syntax->datum #'runtime-name))
-                                                    (raise-syntax-error 'bad-structure
-                                                                        (format "expected ~a got ~a"
-                                                                                'match
-                                                                                (syntax->datum #'runtime-name))))]))
                                #`(define-syntax-class name
                                    #:disable-colon-notation
                                    (pattern runtime-name
@@ -179,14 +170,8 @@
              #:attr range (attribute count-spec.range)
              #:attr start (attribute count-spec.start)
              #:attr stop (attribute count-spec.stop)
-             #:attr start-value #'(~? count-spec.start :0) #;(if (attribute count-spec.start) #'count-spec.start #':0)
-             #:attr stop-value #'(~? count-spec.stop :+inf.0) #;(if (attribute count-spec.stop) #'count-spec.stop #':+inf.0)
-             ; we can't actually do this inside of there becuase ~optional needs to wrap it
-             ;#:attr racket (cond [(attribute count-spec.number) ; TODO name-pat
-             ;#'name]
-             ;[#t (cond [(eq? (attribute count-spec.start) 1) #'name]
-             ;[(eq? (attribute count-spec.start) 0) #'(~optional name body)])])
-             ))
+             #:attr start-value #'(~? count-spec.start :0)
+             #:attr stop-value #'(~? count-spec.stop :+inf.0)))
 
   (define-syntax-class sc-pred
     (pattern ([name:id (~or* function:expr function:id)] ...)))
@@ -265,9 +250,7 @@
            #:do [(define len-body (length (syntax->datum #'(body.racket ...))))
                  ;(define has-body (not (= len-body) 0))  ; preserving for a bug report
                  (define has-body (not (= len-body 0)))  ; having (not (= len-body) 0) causes an _insane_ error
-                 (define has-multi-body (<= 2 len-body))
-                 #;
-                 (pretty-write len-body)]
+                 (define has-multi-body (<= 2 len-body))]
            #:with :... (datum->syntax this-syntax '...)  ; FIXME this-syntax may not be appropriate here
            #:with :...+ (datum->syntax this-syntax '...+)
            #:with :~do (datum->syntax this-syntax '~do)
@@ -308,7 +291,6 @@
                                           (~? terminal.sc-pat)))
            ;#:do [(pretty-write (syntax->datum #'(syntax-classes ...)))]
            #:with (literals ...) #'((~? name) body.literals ... ...)
-           ;#:attr literals #'((~? name) (~? body.literals) ...)
            #:attr h-name (if (attribute head.-name) #f #'name) 
            #:attr t-predicate (if (attribute terminal.predicate) #'terminal.name #f) 
 
@@ -316,26 +298,12 @@
                                              body.local-conventions ... ...
                                              (~? [t-predicate terminal.termsc]))
            ;#:do [(pretty-write (syntax->datum #'(local-conventions ...)))]
-
-           ;#:attr body-between/optional (if (= (syntax-e #'head.start) 0) #':~optional #f)
            #:attr elip-type (if (attribute head.stop)
                                 #f
                                 (if (attribute head.start)
                                     #':...+
                                     #':...))
 
-           #:attr
-           -racket
-           #f
-           #;
-           #'(name
-              ; FIXME malts and maybe elips go after all the body stuff?
-              (~? (:~alt (:~between body.racket body.head-start body.head-stop) ...)
-                  (:~once (~@ body.racket (~? body.elip-type)) ...)
-                  (~? (:~optional (~@ body.racket (~? body.elip-type)) ...)
-                      (~@ (~@ body.racket (~? body.elip-type)) ...)))
-              (~? terminal.name))
-           ;(and has-body (attribute body.:~optional2))
            #:with (actual-body ...) (cond [has-multi-body #'(body.repr-body-racket ...)]
                                           [(and (not (for/or ([b (attribute body.:~once)]) b))
                                                 (for/or ([b (attribute body.:~optional2)]) b))
@@ -366,129 +334,5 @@
                                                  racket)))
            ;#:do [(pretty-write (syntax->datum #'racket))]
            ;#:do [(pretty-write (syntax->datum #'repr-body-racket))]
-           )
-  )
-
-#;
-(define-syntax-class -sc-body
-  (pattern (head:sc-head body:sc-body ... (~optional terminal:sc-terminal))
-           #:attr name #'head.match
-           #:attr range (attribute head.range)
-           #:attr syntax-classes (if (not (null? (syntax->datum #'(body.syntax-classes ...))))
-                                     (if (attribute head.name-pat)
-                                         (if (and (attribute terminal) (attribute terminal.predicate))
-                                             (join-parts this-syntax #'([head.sc-pat] body.syntax-classes ... [terminal.sc-pat]))
-                                             (join-parts this-syntax #'([head.sc-pat] body.syntax-classes ...)))
-                                         (if (and (attribute terminal) (attribute terminal.predicate))
-                                             (join-parts this-syntax #'(body.syntax-classes ... [terminal.sc-pat]))
-                                             (join-parts this-syntax #'(body.syntax-classes ...))
-                                             ))
-                                     (if (attribute head.name-pat)
-                                         (if (and (attribute terminal) (attribute terminal.predicate))
-                                             #'(head.sc-pat terminal.sc-pat)
-                                             #'[head.sc-pat])
-                                         (if (and (attribute terminal) (attribute terminal.predicate))
-                                             #'[terminal.sc-pat]
-                                             #'())))
-           #:attr head-convention (if (attribute head.-name) #'() #'([head.match head.name]))
-           #:attr term-convention (if (and (attribute terminal)
-                                            (attribute terminal.predicate))
-                                      #'([terminal.name terminal.termsc])
-                                       #'())
-           #:attr local-conventions (let ([body-conv
-                                           (let ([body-datum
-                                                  (apply append
-                                                       (filter (λ (thing) (not (null? thing)))
-                                                               (syntax->datum
-                                                                #'(head-convention body.local-conventions ... term-convention))))])
-                                             (if (null? body-datum)
-                                                 #'()
-                                                 (datum->syntax this-syntax body-datum)))])
-                                      body-conv)
-           #:attr -literals (if (attribute head.-name)
-                                #'(head.-name body.-literals ...)
-                                #'(body.-literals ...))
-           #:attr literals (datum->syntax this-syntax
-                                          (let ([lits (attribute -literals)])
-                                            ;(println lits)
-                                            (flatten (map syntax->datum (flatten lits)))))
-           #:attr start (syntax-e #'head.start)
-           #:attr stop (syntax-e #'head.stop)
-
-           #:with alt (datum->syntax this-syntax '~alt)
-           #:with seq (datum->syntax this-syntax '~seq)
-           #:with opt (datum->syntax this-syntax '~optional)
-           #:with between (datum->syntax this-syntax '~between)
-           #:with elip (datum->syntax this-syntax '...)
-           #:with elip+ (datum->syntax this-syntax '...+)
-           #:with tdo (datum->syntax this-syntax '~do)  ; if this is noop I will be super pissed
-           #:with inf (datum->syntax this-syntax +inf.0)
-           #:with zero (datum->syntax this-syntax 0)
-           #:with one (datum->syntax this-syntax 1)
-           #:attr alts (if (not-null? (syntax->datum #'(body ...)))  ; FIXME vs #'(body.head-racket ...)
-                           #'(seq (alt body.head-racket ...) elip)
-                           #f)
-           #:attr head-start #'head.start
-           #:attr head-stop #'head.stop  ; TODO make sure this gets converted to 1 or +inf.0
-           #:attr elip-type (if (= 1 (attribute stop)) #'(seq) (if (= 0 (attribute start)) #'elip #'elip+))  ; FIXME...
-           #:attr head-racket (let* ([-start (attribute start)]
-                                     [-stop (attribute stop)]
-                                     [start (cond [(= -start 0) #f]
-                                                  [(= -start 1) #t]
-                                                  [#t (raise-syntax-error 'hrm "HRM allow min 2?")])]
-                                     [stop (cond [(= -stop +inf.0) #f]
-                                                 [(= -stop 1) #t]
-                                                 [#t (raise-syntax-error 'hrm "HRM allow not 1 or n?")])]
-                                     [altsp (attribute alts)]
-                                     [bodyp (attribute alts)]
-                                     [malts (< 1 (length (syntax->datum #'(body.head-racket ...))))]
-                                     [termp (attribute terminal)]
-                                     ; TODO !!! when there is more than one body what do we do?
-                                     ; also do we allow restrictions on the order? this is technically
-                                     ; originally from xml where the order of nodes doesn't matter and
-                                     ; so... probably don't want to try that here... same issue with
-                                     ; defining order by allowing recursive structures...
-                                     [TODO (length (syntax->datum #'(body ...)))])
-                                (if malts
-                                    (if termp
-                                        #'(name (alt (between body.head-racket body.head-start body.head-stop) ...) elip terminal.name)
-                                        #'(name (alt (between body.head-racket body.head-start body.head-stop) ...) elip))
-                                    (if bodyp
-                                        (if (= 1 (car (syntax->datum #'(body.head-stop ...))))
-                                            (if (= 1 (car (syntax->datum #'(body.head-start ...))))
-                                                (if termp
-                                                    ;(range 1 1)
-                                                    #'(name body.head-racket ... terminal.name)
-                                                    #'(name body.head-racket ...))
-                                                (if termp
-                                                    ; (range 0 1)
-                                                    #'(name (opt body.head-racket ...) terminal.name)
-                                                    #'(name (opt body.head-racket ...))))
-                                            (if termp
-                                                ; (range 1 n)
-                                                #'(name body.head-racket ... body.elip-type ... terminal.name)
-                                                #'(name body.head-racket ... body.elip-type ... )))
-                                        (if termp
-                                            #'(name terminal.name)
-                                            #'(name)))))
-           #:attr racket (attribute head-racket); #`(#,(attribute name) body.head-racket ...)
-           #:attr -racket '(let ([start (attribute body.start)]
-                                 [stop (attribute body.stop)])
-                             (if start
-                                 (if stop
-                                     #'(head.name body.head-racket ...) ; no ...
-                                     ;#'(head.name (body.name body.body) ... ...) ; no ...
-                                     #'(head.name body.head-racket ...) ; ...
-                                     ;#'(head.name (body.name body.body) ... ...) ; ...
-                                     )
-                                 (if stop
-                                     #'(head.name body.head-racket ...)
-                                     ;#'(head.name (~optional (body.name body.body)) ... ...) ; opt no ...
-                                     ;#'(head.name (~optional (body.name body.body)) ... ...) ; opt ...
-                                     )))
-           #:attr names (if (attribute body)
-                            (cons (attribute head.name) (attribute body.names))
-                            (list (attribute head.name)))
-           #:attr stx-names (datum->syntax this-syntax (attribute names))
            )
   )

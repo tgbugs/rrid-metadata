@@ -48,15 +48,7 @@
   (syntax-parse stx
     #:literals (stx-sxml)
     [(_ (~optional (~seq #:name syntax-name:id))
-        #;
-        (~optional (~seq #:predicates predicate-let:sc-pred))
-        #;
-        (~optional (~seq #:string->predicate string-let:sc-string-pred))
         schema:sc-body)
-     ;(pretty-write `(ct-body-sc: ,(syntax->datum #'schema.syntax-classes)))
-     ;(define lits (remove-duplicates (syntax->datum #'schema.literals)))
-     ;(define lits-stx (datum->syntax this-syntax lits))
-     ;(define lits-values (datum->syntax this-syntax (cons 'values (range (length lits)))))
      #:with (lits-stx ...) (datum->syntax this-syntax (remove-duplicates (syntax->datum #'(schema.literals ...))))
      #:with top-level (if (eq? (syntax->datum #'schema.racket) (syntax->datum #'schema.name))
                           #'(schema.racket)
@@ -69,17 +61,7 @@
                                      #:local-conventions (schema.local-conventions ...)
                                      [top-level  ; just validate, there may be better ways
                                       stx-sxml]))
-     ;#:with string-let-lambda #'([(λ (value) (equal? string-let.string-value)) string-let.predicate] ...)
-     #;
-     #:with
-     #;
-     lets
-     #;
-     (quasisyntax/loc stx (let (~? predicate-let ())
-                            ; FIXME warn on duplicate predicates
-                            (let (~? string-let.lambda-let ())
-                              ;schema.syntax-classes ...
-                              checker)))
+
      #:with defines #'(begin schema.syntax-classes ...)
      (when (attribute schema.range)
        (raise-syntax-error 'spec-error
@@ -89,50 +71,6 @@
                            #'schema.head  ; schema.range is never syntax
                            ))
      ; FIXME sourceloc...
-     #;
-     (define BODY
-       ; FIXME with-syntax* fails completely silently when not imported wtf
-       (with-syntax (;[shead (attribute schema.head)]
-                      [(syntax-class ...) #'schema.syntax-classes]
-                      ;[(kwliterals ...) (if (attribute schema.literals) #'(#:literals schema.literals) #'())]
-                      ;[def-literals (if (not-null? lits) #`(define-values #,lits-stx #,lits-values) #''())]
-                      [checker #`(let ([stx-sxml (datum->syntax #f sxml)])  ; vs with-syntax?
-                                   (syntax-parse stx-sxml
-                                     #:disable-colon-notation
-                                     #:datum-literals lits-stx
-                                     #:local-conventions schema.local-conventions
-                                     [schema.racket  ; just validate, there may be better ways
-                                      stx-sxml]))])
-         (if (attribute syntax-name)
-             (syntax/loc this-syntax (define (syntax-name sxml)
-                                       ;def-literals
-                                       syntax-class ...
-                                       checker
-                                       sxml))
-             (syntax/loc this-syntax (λ (sxml)
-                                       ;def-literals
-                                       syntax-class ...
-                                       checker
-                                       sxml)))))
-
-     ;(pretty-print `(ct-BODY: ,(syntax->datum BODY)))
-
-     #;
-     (define S-BODY BODY)
-
-     #;
-     (define P-BODY (if (attribute predicate-let)
-                        #`(let predicate-let
-                              ; TODO string-let
-                              (pretty-print (list 'predicates: predicate-let.name ...))
-                            #,S-BODY)
-                        S-BODY))
-
-     ;(pretty-write `(ct-S-BODY: ,(syntax->datum S-BODY)))
-     ;(pretty-write `(ct-P-BODY: ,(syntax->datum P-BODY)))
-     ;(pretty-write `(ct-MORE: ,(attribute schema.test-name)))
-     ;P-BODY
-
      (let ([out 
             (syntax/loc this-syntax
               (~? (begin
@@ -263,102 +201,14 @@
   )
 
 (module+ test
-    ; FIXME FIXME LOOK HERE
-    ; FIXME I think we want this to translate into (~or* (~optional 1) (~optional 2)) ...
     (sxml-schema #:name multi-body-test ([TOP 1] ([(pattern *body1) (range 0 n)] "hello there")
                                                  ([(pattern *body2) (range 0 n)] "general nobody")
                                                  ;null)) ; FIXME this should fail? null isn't a predicate
                                                  #;null?))
-    #;
-    (~seq (~or* (~optional (interna-name2 "hello there"))
-                (~optional (interna-name2 "general nobody"))) ...)
 
     (multi-body-test `(TOP (a-body1 "hello there")
                            (b-body1 "hello there")
                            (body2 "general nobody")))  ; null doesn't work in quotes
-
-    #;
-    (define (multi-body-test sxml)
-      (define-syntax TOP #'pls-go)
-      (define-syntax-class
-        *body1-c
-        #:disable-colon-notation
-        (pattern
-         runtime-name
-         #:do
-         ((let* ((p-s (string-split (symbol->string '*body1) "*" #:trim? #f))
-                 (p (car p-s))
-                 (s (cadr p-s)))
-            (unless (and
-                     (syntax->string-prefix? #'runtime-name p)
-                     (syntax->string-suffix? #'runtime-name s))
-              (println
-               (list 'failtime: p-s p s #'runtime-name
-                     (syntax->string-prefix? #'runtime-name p)
-                     (syntax->string-suffix? #'runtime-name s)))
-              (raise-syntax-error
-               'bad-structure
-               (format
-                "expected ~a got ~a"
-                '*body1
-                (syntax->datum #'runtime-name))))))))
-      (define-syntax-class
-        *body2-e
-        #:disable-colon-notation
-        (pattern
-         runtime-name
-         #:do
-         ((let* ((p-s (string-split (symbol->string '*body2) "*" #:trim? #f))
-                 (p (car p-s))
-                 (s (cadr p-s)))
-            (unless (and
-                     (syntax->string-prefix? #'runtime-name p)
-                     (syntax->string-suffix? #'runtime-name s))
-              (println
-               (list
-                'failtime:
-                p-s
-                p
-                s
-                #'runtime-name
-                (syntax->string-prefix? #'runtime-name p)
-                (syntax->string-suffix? #'runtime-name s)))
-              (raise-syntax-error
-               'bad-structure
-               (format
-                "expected ~a got ~a"
-                '*body2
-                (syntax->datum #'runtime-name))))))))
-      (define-syntax-class
-        termsc-g
-        (pattern
-         runtime-value
-         #:do
-         ((unless (null? (syntax->datum #'runtime-value))
-            (raise-syntax-error
-             'bad-structure
-             (format
-              "TODO ~a not a ~a"
-              (syntax->datum #'runtime-value)
-              (symbol->string 'null?)))))))
-      (let ((stx-sxml (datum->syntax #f sxml)))
-        (syntax-parse
-            stx-sxml
-          #:disable-colon-notation
-          #:literals (TOP)
-          #:local-conventions
-          (
-           (internal-name2 *body1-c)
-           (internal-name2b *body1-c)
-
-           (internal-name3 *body2-e))
-          ((TOP
-            (internal-name2 "hello there")
-            (internal-name2b "hello there")
-            (internal-name3 "general nobody")
-            )
-           stx-sxml)))
-      sxml)
     )
 
 (module+ test
@@ -387,22 +237,6 @@
  )
 
 (module+ test 
-  (define-syntax (test-negative stx)
-    (syntax-parse stx
-      [(_ inner-stx)
-       #:with stx-print #'(syntax inner-stx) ;(datum->syntax #f (list (syntax->datum stx)))
-       #'(with-handlers ([exn:fail:syntax? (λ (e) "OK syntax" #f)]
-                         [exn:fail? (λ (e) "OK fail" #f)]
-                         ;[exn? (λ (e) "OK" #f)]
-                         )
-           (convert-syntax-error inner-stx)
-           ;(raise-type-error 'negative-failed "negative syntax check passed when it should have failed")
-           stx-print)]))
-
-  (define (assert thing)
-    (when thing
-      (raise-result-error 'assertion-fail (format "failure of: ~a" thing) 'success)))
-
   (sxml-schema #:name deep-nesting ([a 1] ([b 1] ([c 1] ([d 1] ([e 1] ([f 1] "g")
                                                                       ([x 1] string?)
                                                                       ([h 1] "i")))))))
@@ -467,52 +301,6 @@
    ; FIXME should fail
    '(tag (tag2)))
   )
-
-#;
-(module+ test
- (define (fail-test-e sxml)
-   (let ([stx-sxml (datum->syntax #f sxml)])
-     (syntax-parse stx-sxml
-       #:disable-colon-notation
-       #:datum-literals (TOP a b)
-       [#;(TOP ((~alt (~optional a)
-                      (~optional b)) ...))
-        #;(TOP (~or* (a) (b)  ; this works if both are optional
-                     
-                     ) ...)
-        ;(TOP ((~or* a b)) ...)  ; more compact if all are optional
-        #;(TOP (~alt (~optional (a "a"))  ; this one isn't quite right but closer
-                     (~optional (b "b")))
-               ...
-               )
-        ;(TOP (~or* (a "a") (b "b")) ...)  ; again only if optional
-        ;(TOP (~or* (~once (a "a")) (b "b")) ...)
-        ;(TOP (~seq (~optional (a "a")) (~optional (b "b"))) ... )
-        #;(TOP (~alt (~between (a "a") 1 +inf.0)  ; (~optional ) +inf.0 makes this hang as is should
-                     ; this version means there must always be 1 a...
-                     (~optional (b "b"))) ...
-               )
-        (TOP (~alt (~between (a "a") 1 +inf.0)
-                   (~between (b "b") 0 +inf.0)) ...)
-        ; apparently these two are not equivalent...
-        #;(TOP (~alt (~seq (a "a") ...+)
-                     (~seq (b "b") ...)
-                     ) ...)
-        stx-sxml]))
-   sxml
-   )
-
- ; today we learned about #:datum-literals and that ~optional means max 1
-
- ;(fail-test-e '(TOP))  ; FIXME sigh...
- (fail-test-e '(TOP (a "a")))
- (fail-test-e '(TOP (b "b") (a "a")))  ; FIXME fails when it should not
- (fail-test-e '(TOP (a "a") (b "b") (b "b")))
- ;(fail-test-e '(TOP (b "b")))
- ;(fail-test-e '(TOP (a b)))  ; so this is how alt works?
- (fail-test-e '(TOP (a "a") (b "b") (b "b") (a "a")))
- (fail-test-e '(TOP (b "b") (a "a") (a "a")))  ; FIXME fails when it should not
-        )
 
 ;; utility
 
