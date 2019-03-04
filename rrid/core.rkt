@@ -18,7 +18,8 @@
  )
 
 (module+ test
-  (require rackunit))
+  (require rackunit
+           syntax/macro-testing))
 
 (provide make-gtr! set-add-rec! make-record schema-url sxml-schema define-syntax-class)
 
@@ -52,12 +53,16 @@
      ;(define lits-stx (datum->syntax this-syntax lits))
      ;(define lits-values (datum->syntax this-syntax (cons 'values (range (length lits)))))
      #:with (lits-stx ...) (datum->syntax this-syntax (remove-duplicates (syntax->datum #'(schema.literals ...))))
+     #:with top-level (if (eq? (syntax->datum #'schema.racket) (syntax->datum #'schema.name))
+                          #'(schema.racket)
+                          #'schema.racket
+                          )
      #:with checker #'(let ([stx-sxml (datum->syntax #f sxml)])  ; FIXME how to get the loc from raw sxml
                                    (syntax-parse stx-sxml
                                      #:disable-colon-notation
                                      #:datum-literals (lits-stx ...)
                                      #:local-conventions (schema.local-conventions ...)
-                                     [schema.racket  ; just validate, there may be better ways
+                                     [top-level  ; just validate, there may be better ways
                                       stx-sxml]))
      ;#:with string-let-lambda #'([(λ (value) (equal? string-let.string-value)) string-let.predicate] ...)
      #:with lets (quasisyntax/loc stx (let (~? predicate-let ())
@@ -144,12 +149,21 @@
 ;([*NAMESPACES* (range 0 1)]
 ;([(pattern *) (range 0 n)] uri?)))
 
-#;
+(module+ test
+  ; test optional values
+  (sxml-schema #:name test-optional
+   ([top 1]
+    ([optional-subtree (range 0 1)])))
+  (test-optional '(top))
+  (test-optional '(top (optional-subtree)))
+  )
+
 (module+ test 
   (check-equal? (syntax->datum ((sxml-schema ([tag 1])) '(tag))) '(tag))
+  (check-exn exn:fail:syntax? (thunk (convert-syntax-error ((sxml-schema ([tag 1])) '(not-tag)))))  ; it is normal to see debug on this
+
   (sxml-schema #:name simple ([(pattern a:*) 1]))
   (check-equal? (syntax->datum (simple '(a:thing))) '(a:thing))
-
   (define thing-lambda
     (sxml-schema
      ([top 1]
@@ -175,6 +189,16 @@
   )
 
 (module+ test
+  (sxml-schema
+   #:name test2-sub-1
+   ([(pattern a:*) 1]
+    ([(pattern b:*) 1]
+     ([(pattern c:*) 1] "u")
+     "wat")))
+  (test2-sub-1 '(a:* (b:* (c:* "u") "wat")))
+  )
+
+(module+ test
   ; example where having multiple bodies limit 1 breaks ~alt
   (sxml-schema
    #:name test2
@@ -184,7 +208,9 @@
      "wat")
     ([(pattern d:*) 1] "m8")))
 
-  ;(test2 '(a:* (b:* "nope")))
+  (test2 '(a:* (b:* (c:* "u") "wat") (d:* "m8")))
+  #; ; should fail?
+  (test2 '(a:thing (b:maybe "nope")))
   #;
   (test2 '(a:hello (b:there "wat")))
   ;(test2 '(a:* (b:* "wat") (b:* "wat")))  ; now failing correclty
@@ -363,7 +389,6 @@
     )
 #;
 (module+ test 
-  (require syntax/macro-testing)
   (define-syntax (test-negative stx)
     (syntax-parse stx
       [(_ inner-stx)

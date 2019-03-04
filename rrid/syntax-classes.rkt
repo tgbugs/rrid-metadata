@@ -148,19 +148,29 @@
                                #`(define-syntax-class name
                                    #:disable-colon-notation
                                    (pattern runtime-name
-                                            #:do [(let* ([p-s (string-split (symbol->string 'name-pat.name-pattern) "*" #:trim? #f)]
+                                            #:fail-unless
+                                            (let* ([p-s (string-split (symbol->string 'name-pat.name-pattern) "*" #:trim? #f)]
                                                          [p (car p-s)]
                                                          [s (cadr p-s)])
-                                                    (unless (and (syntax->string-prefix? #'runtime-name p)
-                                                                 (syntax->string-suffix? #'runtime-name s))
-                                                      (println (list 'failtime: p-s p s #'runtime-name
-                                                                     (syntax->string-prefix? #'runtime-name p)
-                                                                     (syntax->string-suffix? #'runtime-name s)))
-                                                      (raise-syntax-error 'bad-structure
-                                                                          (format "expected ~a got ~a"
-                                                                                  'name-pat.name-pattern
-                                                                                  (syntax->datum #'runtime-name))
-                                                                          #;#,this-syntax)))])))
+                                              (and (syntax->string-prefix? #'runtime-name p)
+                                                   (syntax->string-suffix? #'runtime-name s)))
+                                            "name did not match!"  ; TODO
+                                            #;
+                                            #:do
+                                            #;
+                                            [(let* ([p-s (string-split (symbol->string 'name-pat.name-pattern) "*" #:trim? #f)]
+                                                    [p (car p-s)]
+                                                    [s (cadr p-s)])
+                                               (unless (and (syntax->string-prefix? #'runtime-name p)
+                                                            (syntax->string-suffix? #'runtime-name s))
+                                                 (println (list 'failtime: p-s p s #'runtime-name
+                                                                (syntax->string-prefix? #'runtime-name p)
+                                                                (syntax->string-suffix? #'runtime-name s)))
+                                                 (raise-syntax-error 'bad-structure
+                                                                     (format "expected ~a got ~a"
+                                                                             'name-pat.name-pattern
+                                                                             (syntax->datum #'runtime-name))
+                                                                     #;#,this-syntax)))])))
              #:attr range (attribute count-spec.range)
              #:attr start (attribute count-spec.start)
              #:attr stop (attribute count-spec.stop)
@@ -189,6 +199,9 @@
 (provide (all-defined-out)
          (all-from-out 'derp))
 
+(module+ test
+  (require rackunit))
+
 (define-syntax-class sc-terminal
   #:datum-literals (->?)  ; predicate from sibbling path value
   ;#:local-conventions
@@ -208,12 +221,18 @@
            #:attr sc-pat (cond [(attribute predicate)
                                 #'(define-syntax-class termsc
                                     (pattern runtime-value:expr
-                                             #:do [(unless (predicate (syntax->datum #'runtime-value))
-                                                     (raise-syntax-error 'bad-structure
-                                                                         (format "TODO ~a not a ~a"
-                                                                                 #'runtime-value
-                                                                                 (symbol->string 'predicate))
-                                                                         this-syntax))]))]
+                                             #:fail-unless
+                                             (predicate (syntax->datum #'runtime-value))
+                                             "TODO runtime value does not match predicate!"
+                                             #;
+                                             #:do
+                                             #;
+                                             [(unless (predicate (syntax->datum #'runtime-value))
+                                                (raise-syntax-error 'bad-structure
+                                                                    (format "TODO ~a not a ~a"
+                                                                            #'runtime-value
+                                                                            (symbol->string 'predicate))
+                                                                    this-syntax))]))]
                                [else #f #;#'(i have no idea what is going on here)])
            ))
 
@@ -248,18 +267,31 @@
            #:with :+inf.0 (datum->syntax this-syntax +inf.0)
            #:with :0 (datum->syntax this-syntax 0)
            #:with :1 (datum->syntax this-syntax 1)
+           #:with :~between2 (if (and (attribute head.start) (attribute head.stop))
+                              (datum->syntax this-syntax '~between)
+                              #f
+                              )
+           #:with :~optional2 (if (and (not (attribute head.start))
+                                       (attribute head.stop)
+                                       (= (syntax-e (attribute head.stop)) 1))
+                                  (datum->syntax this-syntax '~optional)
+                                  #f)
 
            #:attr :~alt (if has-multi-body (datum->syntax this-syntax '~alt) #f)
            #:attr :~between (if has-multi-body (datum->syntax this-syntax '~between) #f)
            #:attr :~optional (if (and has-body (attribute head.start))  ; FIXME this needs to support ...
                                     (datum->syntax this-syntax '~optional)
                                     #f)
-
+           ; reminder that optional and between are used looking at contained nodes
+           #:attr :~once (if (and
+                              (attribute head.start) (attribute head.stop)
+                              (= (syntax-e (attribute head.start)) (syntax-e (attribute head.stop)) 1))
+                             (datum->syntax this-syntax '~once)
+                             #f)
            #:attr name #'head.match
            #:attr range (attribute head.range)
            #:attr head-stop (attribute head.stop)  ; TODO make sure this is simply false if n is specified
            #:attr head-start (attribute head.start)
-           ;#:do [(pretty-write (list 'range?: (attribute range) (attribute head-start) (attribute head-stop)))]
 
            #:with (syntax-classes ...) (syntax/loc this-syntax
                                          ((~? head.sc-pat)
@@ -282,12 +314,46 @@
                                 (if (attribute head.start)
                                     #':...+
                                     #':...))
-           #:attr racket #'(name
-                            ; FIXME malts and maybe elips go after all the body stuff?
-                            (~? (:~alt (:~between body.racket body.head-start body.head-stop) ...)
-                                (~? (:~optional (~@ body.racket (~? body.elip-type)) ...)
-                                    (~@ (~@ body.racket (~? body.elip-type)) ...)))
-                            (~? terminal.name))
+
+           #:attr
+           -racket
+           #f
+           #;
+           #'(name
+              ; FIXME malts and maybe elips go after all the body stuff?
+              (~? (:~alt (:~between body.racket body.head-start body.head-stop) ...)
+                  (:~once (~@ body.racket (~? body.elip-type)) ...)
+                  (~? (:~optional (~@ body.racket (~? body.elip-type)) ...)
+                      (~@ (~@ body.racket (~? body.elip-type)) ...)))
+              (~? terminal.name))
+           ;(and has-body (attribute body.:~optional2))
+           #:with (actual-body ...) (cond [has-multi-body #'(body.repr-body-racket ...)]
+                                          [(and (not (for/or ([b (attribute body.:~once)]) b))
+                                                (for/or ([b (attribute body.:~optional2)]) b))
+                                           #'(body.repr-body-racket ...)]
+                                          [else #'((~@ body.racket (~? body.elip-type)) ...)])
+           #:attr racket-s (cond [(or has-body (attribute terminal))
+                                  #'(name
+                                     (~? (~@ (:~alt body.repr-body-racket ...) :...)
+                                         (~@ actual-body ...))
+                                     (~? terminal.name))]  ; FIXME elip-type ???
+                                 [(attribute :~optional2) #'(name)]
+                                 [else #f])
+           #:attr racket #'(~? racket-s name)
+           #;
+           #:do
+           #;
+           [
+            #;
+            (pretty-write (list 'body.:~optional2? (attribute body.:~optional2)))
+            (pretty-write (list 'range?: (attribute range) (attribute head-start) (attribute head-stop)))
+            (pretty-write (list ':~optional2-:~once (attribute :~optional2) (attribute :~once)))
+            (pretty-write (list 'wat #'(~? (:~optional2 (~@ racket)) "U WOT M8")))
+            ]
+           #:attr repr-body-racket #'(~? (:~once (~@ racket (~? elip-type)))
+                                         (~? (:~optional2 (~@ racket (~? elip-type)))
+                                             (~? (:~between2 racket head-start head-stop)
+                                                 racket)))
            ;#:do [(pretty-write (syntax->datum #'racket))]
            )
   )
