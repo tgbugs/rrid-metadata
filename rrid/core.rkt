@@ -52,9 +52,7 @@
      ;(define lits-stx (datum->syntax this-syntax lits))
      ;(define lits-values (datum->syntax this-syntax (cons 'values (range (length lits)))))
      #:with (lits-stx ...) (datum->syntax this-syntax (remove-duplicates (syntax->datum #'(schema.literals ...))))
-
-     #:with (syntax-class ...) #'schema.syntax-classes
-     #:with checker #`(let ([stx-sxml (datum->syntax #f sxml)])  ; FIXME how to get the loc from raw sxml
+     #:with checker #'(let ([stx-sxml (datum->syntax #f sxml)])  ; FIXME how to get the loc from raw sxml
                                    (syntax-parse stx-sxml
                                      #:disable-colon-notation
                                      #:datum-literals (lits-stx ...)
@@ -65,16 +63,15 @@
      #:with lets (quasisyntax/loc stx (let (~? predicate-let ())
                                         ; FIXME warn on duplicate predicates
                                         (let (~? string-let.lambda-let ())
-                                                    syntax-class ...
-                                                    checker
-                                                    )
-                                                  ))
+                                          ;schema.syntax-classes ...
+                                          checker)))
+     #:with defines #'(begin schema.syntax-classes ...)
      (when (attribute schema.range)
        (raise-syntax-error 'spec-error
                            (format "The top node ~a cannot specify a name pattern, only 1 e.g. ([top 1])"
                                    #'schema.name)
                            #'schema
-                           #'schema.range
+                           #'schema.head  ; schema.range is never syntax
                            ))
      ; FIXME sourceloc...
      #;
@@ -123,13 +120,14 @@
 
      (let ([out 
             (syntax/loc this-syntax
-              (~? (define (syntax-name sxml)
-                    lets)
+              (~? (begin
+                    schema.syntax-classes ...
+                    (define (syntax-name sxml)
+                      lets))
                   (λ (sxml)
+                    schema.syntax-classes ...
                     lets)
-                  
-                  )
-              )])
+                  ))])
 
        #;
        (pretty-write `(ct-out: ,(syntax->datum out)))
@@ -146,39 +144,77 @@
 ;([*NAMESPACES* (range 0 1)]
 ;([(pattern *) (range 0 n)] uri?)))
 
-#;(module+ test 
-    ((sxml-schema ([tag 1])) '(tag))
-    (sxml-schema #:name test2 ([(pattern a:*) 1]
-                               ([(pattern b:*) 1] "wat")))
-    ;(test2 '(a:* (b:* "nope")))
-    (test2 '(a:hello (b:there "wat")))
-    ;(test2 '(a:* (b:* "wat") (b:* "wat")))  ; now failing correclty
-    (let ([schema (sxml-schema ([tag 1] ([tag2 (range 0 1)] string?) integer?))])
-      (schema '(tag (tag2 "thing") 109219))
-      (schema '(tag 109219)))  ; FIXME have to insert the optional here...
+#;
+(module+ test 
+  (check-equal? (syntax->datum ((sxml-schema ([tag 1])) '(tag))) '(tag))
+  (sxml-schema #:name simple ([(pattern a:*) 1]))
+  (check-equal? (syntax->datum (simple '(a:thing))) '(a:thing))
+
+  (define thing-lambda
+    (sxml-schema
+     ([top 1]
+      ([simple (range 0 1)] string?)
+      symbol?)))
+  (sxml-schema #:name thing
+   ([top 1]
+    ([simple (range 0 1)] string?)
+    symbol?))
+  (check-equal? (syntax->datum (thing '(top value))) '(top value))
+  (check-equal? (syntax->datum (thing '(top (simple "yes") maybe))) '(top (simple "yes") maybe))
+  (check-equal? (syntax->datum (thing #'(top (simple "yes") maybe))) '(top (simple "yes") maybe))
+
+  (sxml-schema #:name simple2
+   ([(pattern a:*) 1]
+    #;[(pattern a:*) (range 0 n)]  ; this should be failing? and now is
+    ([simple (range 0 1)] symbol?)
+    symbol?))
+  (define sxml1 '(a:hello (simple symb1) symb2))  ; NOTE if you are working with symbols and pass in a quoted list, don't double quote
+  (check-equal? (syntax->datum (simple2 sxml1)) sxml1)
+  (check-equal? (syntax->datum (simple2 (list 'a:hello (list 'simple 'symb1) 'symb2))) sxml1)
+  ;(simple2 '(a:there (nothing) there))  ; fails as expcted since the head [simple (range 0 1)] specifies for the whole tree
+  )
+
+(module+ test
+  ; example where having multiple bodies limit 1 breaks ~alt
+  (sxml-schema
+   #:name test2
+   ([(pattern a:*) 1]
+    ([(pattern b:*) 1]
+     ([(pattern c:*) 1] "u")
+     "wat")
+    ([(pattern d:*) 1] "m8")))
+
+  ;(test2 '(a:* (b:* "nope")))
+  #;
+  (test2 '(a:hello (b:there "wat")))
+  ;(test2 '(a:* (b:* "wat") (b:* "wat")))  ; now failing correclty
+  #;
+  (let ([schema (sxml-schema ([tag 1] ([tag2 (range 0 1)] string?) integer?))])
+    (schema '(tag (tag2 "thing") 109219))
+    (schema '(tag 109219)))  ; FIXME have to insert the optional here...
     )
+#;
+(module+ test
 
-#;(module+ test
 
+  (sxml-schema #:name fail-test ([TOP 1] ([a (range 0 n)])
+                                         ([b (range 0 n)])))
 
-    (sxml-schema #:name fail-test ([TOP 1] ([a (range 0 n)])
-                                           ([b (range 0 n)])))
+  (fail-test '(TOP (a)))
+  (fail-test '(TOP (b)))
+  (fail-test '(TOP (a) (b)))
+  (fail-test '(TOP (b) (a)))
+  (fail-test '(TOP (a) (b) (b) (a)))
 
-    (fail-test '(TOP (a)))
-    (fail-test '(TOP (b)))
-    (fail-test '(TOP (a) (b)))
-    (fail-test '(TOP (b) (a)))
-    (fail-test '(TOP (a) (b) (b) (a)))
+  (sxml-schema #:name sigh ([TOP 1] ([a 1]) ([b 1])))
+  (sigh '(TOP (a) (b)))
+  (sigh '(TOP (b) (a)))
 
-    (sxml-schema #:name sigh ([TOP 1] ([a 1]) ([b 1])))
-    (sigh '(TOP (a) (b)))
-    (sigh '(TOP (b) (a)))
-
-    (sxml-schema #:name sigh2 ([TOP 1] ([a (range 1 n)]) ([b (range 0 n)])))
-    (sigh2 '(TOP (a)))
-    (sigh2 '(TOP (a) (b)))
-    (sigh2 '(TOP (b) (a)))
-    ;(sigh2 '(TOP (b)))  ; should fail  and now does
+  (sxml-schema #:name sigh2 ([TOP 1] ([a (range 1 n)]) ([b (range 0 n)])))
+  (sigh2 '(TOP (a)))
+  (sigh2 '(TOP (a) (b)))
+  (sigh2 '(TOP (b) (a)))
+  ;(sigh2 '(TOP (b)))  ; should fail  and now does
     )#;(
 
 
@@ -348,7 +384,7 @@
                                                                       ([x 1] string?)
                                                                       ([h 1] "i")))))))
   (test-negative (assert (test-negative (sxml-schema ([tag 1])))))  ; ah the old doulb test negative... will still break silently
-  (assert (test-negative (sxml-schema ())))
+  (check-exn exn:fail:syntax? (thunk (convert-syntax-error (sxml-schema ()))))
   (assert (test-negative (sxml-schema ([]))))
   (assert (test-negative (sxml-schema ([tag]))))
   (assert (test-negative (sxml-schema ([tag 0]))))
@@ -400,13 +436,13 @@
   (sxml-schema #:name test1 ([top 1] ([yeee (range 0 n)] "wat")))
   (assert (test-negative (test1 '(top (yeee) (yeee)))))  ; fails as expected
   (test1 '(top (yeee "wat") (yeee "wat")))
-  (sxml-schema #:name test2 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
-  (assert (test-negative (test2 '(a:* (b:*))))) ; fails as expected
-  (assert (test-negative (test2 '(a:* (b:* "not wat")))))  ; fails as expected
-  (assert (test-negative (test2 '(should (fail "wat")))))  ; fails as expected
-  (assert (test-negative (test2 '(should (fail "and does")))))
-  (test2 '(a:* (b:* "wat")))
-  (assert (test-negative (test2 '(a:* (b:* "wat") (b:* "wat")))))  ; fails as expected
+  (sxml-schema #:name test2.1 ([(pattern a:*) 1] ([(pattern b:*) 1] "wat")))
+  (assert (test-negative (test2.1 '(a:* (b:*))))) ; fails as expected
+  (assert (test-negative (test2.1 '(a:* (b:* "not wat")))))  ; fails as expected
+  (assert (test-negative (test2.1 '(should (fail "wat")))))  ; fails as expected
+  (assert (test-negative (test2.1 '(should (fail "and does")))))
+  (test2.1 '(a:* (b:* "wat")))
+  (assert (test-negative (test2.1 '(a:* (b:* "wat") (b:* "wat")))))  ; fails as expected
   (sxml-schema #:name test3 ([(pattern a:*) 1] ([(pattern b:*) (range 0 n)] "wat")))  ; test for duplicate pattern defs
   (test3 '(a:* (b:* "wat") (b:* "wat")))
   (test3 '(a:hello (b:there "wat")))
@@ -522,7 +558,7 @@
        [xml-langs '("en-US")]
        [hit-the-database (λ (value) "totally going to the database I swear" #t)]
        [check-remote #f])
-    (sxml-schema
+    '(sxml-schema
      #:predicates ([related-identifier-type? (λ (value) (member value '("URL" "DOI")))]
                    [resource-type-general? (λ (value) (member value resource-type-generals))]
                    [iso8601-tz-string? (λ (value) (string->date value "~Y-~M-~DT~TZ"))]  ; TODO make more predicate like...
@@ -880,6 +916,7 @@
   (set-gtr! gtr)
   (void))
 
+#;
 (module+ test
   (require "database.rkt")
   (require "sources.rkt")

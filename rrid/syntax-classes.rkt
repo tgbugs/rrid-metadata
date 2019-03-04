@@ -1,14 +1,18 @@
 #lang racket/base
 (module derp racket/base
   (module double-derp racket/base
+    #;
     (module blank racket/base
       (provide (all-defined-out))
       (define _ #'please-only-use-me-in-templates-thank-you!))
     (require syntax/parse
              (only-in racket/string string-prefix? string-suffix?)
              (for-syntax (only-in racket/string string-prefix? string-suffix?))
+             (for-template (only-in racket/base _))
+             #;
              (for-template 'blank))
     (provide (all-defined-out)
+             #;
              (for-template (all-from-out 'blank)))
 
     (define (syntax->string-prefix? stx-str pref-str)
@@ -180,6 +184,7 @@
          racket/pretty
          'derp
          (only-in racket/list flatten)
+         (for-template racket/base racket/syntax syntax/parse) 
          (for-syntax racket/base syntax/parse 'derp))
 (provide (all-defined-out)
          (all-from-out 'derp))
@@ -191,10 +196,10 @@
      [exact-value string]
      [exact-value integer]
      [subtree sc-exact-pat])
-  (pattern (~or predicate:id
-                exact-value:string 
-                exact-value:integer  ; FIXME when does this happen?!
-                (->? subtree:sc-exact-pat))
+  (pattern (~or* predicate:id
+                 exact-value:string 
+                 exact-value:integer  ; FIXME when does this happen?!
+                 (->? subtree:sc-exact-pat))
            #:with termsc (nsuf this-syntax #'termsc)
            ;#:attr predicate-name (if (attribute predicate) () #f)
            #:attr name (cond [(attribute predicate) (generate-temporary #'predicate)]
@@ -235,6 +240,7 @@
                  ;(define has-body (not (= len-body) 0))  ; preserving for a bug report
                  (define has-body (not (= len-body 0)))  ; having (not (= len-body) 0) causes an _insane_ error
                  (define has-multi-body (<= 2 len-body))
+                 #;
                  (pretty-write len-body)]
            #:with :... (datum->syntax this-syntax '...)  ; FIXME this-syntax may not be appropriate here
            #:with :...+ (datum->syntax this-syntax '...+)
@@ -253,11 +259,13 @@
            #:attr range (attribute head.range)
            #:attr head-stop (attribute head.stop)  ; TODO make sure this is simply false if n is specified
            #:attr head-start (attribute head.start)
+           ;#:do [(pretty-write (list 'range?: (attribute range) (attribute head-start) (attribute head-stop)))]
 
-           #:attr syntax-classes (syntax/loc this-syntax
-                                   ((~? head.sc-pat)
-                                    (~? body.syntax-classes) ...
-                                    (~? terminal.sc-pat)))
+           #:with (syntax-classes ...) (syntax/loc this-syntax
+                                         ((~? head.sc-pat)
+                                          body.syntax-classes ... ...
+                                          (~? terminal.sc-pat)))
+           ;#:do [(pretty-write (syntax->datum #'(syntax-classes ...)))]
            #:with (literals ...) #'((~? name) body.literals ... ...)
            ;#:attr literals #'((~? name) (~? body.literals) ...)
            #:attr h-name (if (attribute head.-name) #f #'name) 
@@ -266,7 +274,7 @@
            #:with (local-conventions ...) #'((~? [h-name head.name])
                                              body.local-conventions ... ...
                                              (~? [t-predicate terminal.termsc]))
-           #:do [(pretty-write (syntax->datum #'(local-conventions ...)))]
+           ;#:do [(pretty-write (syntax->datum #'(local-conventions ...)))]
 
            ;#:attr body-between/optional (if (= (syntax-e #'head.start) 0) #':~optional #f)
            #:attr elip-type (if (attribute head.stop)
@@ -277,8 +285,10 @@
            #:attr racket #'(name
                             ; FIXME malts and maybe elips go after all the body stuff?
                             (~? (:~alt (:~between body.racket body.head-start body.head-stop) ...)
-                                (~@ #;(~? :~optional) (~@ body.racket (~? body.elip-type)) ...))
+                                (~? (:~optional (~@ body.racket (~? body.elip-type)) ...)
+                                    (~@ (~@ body.racket (~? body.elip-type)) ...)))
                             (~? terminal.name))
+           ;#:do [(pretty-write (syntax->datum #'racket))]
            )
   )
 
