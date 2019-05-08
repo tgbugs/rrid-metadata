@@ -6,7 +6,7 @@
  racket/list
  syntax/macro-testing
  (for-syntax racket/base syntax/parse))
-(provide hr check-syntax-exn define-string-predicate)
+(provide hr hrm check-syntax-exn define-string-predicate)
 
 (define-syntax (check-syntax-exn stx)
   (syntax-parse stx
