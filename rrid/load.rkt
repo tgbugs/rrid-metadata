@@ -40,6 +40,38 @@
               #:index index
               #:doctype "")))
 
+(define (search index jsexpr)
+  (parameterize ([es (get-es-connection)])
+    ;(es/hits
+     (es/search (es)
+                jsexpr
+                #:index index
+                #:doctype "rin")))
+;)
+
+(module+ test-search
+  (define index "RIN_Organism_prod")
+  (define query (hash 'query (hash 'match
+                                   (hash 'message (hash 'query "C57BL/6J")))
+                      'size 100))
+  (define query2 (hash 'query (hash 'match_all (hash)) 'size 100))
+  (define query3 (hash 'query (hash 'multi_match
+                                    (hash 'query "C57BL/6J"
+                                          'type "phrase"
+                                          'fields '("name")
+                                          ))))
+  (define query4 (hash 'query (hash 'simple_query_string
+                                    (hash 'query "C57BL/6J"
+                                          ;'fields '("*")
+                                          'fields '("item.name")
+                                          'default_operator "and"
+                                          ))
+                       'size 100))
+  (define res (search index query4))
+  ;(hrm res hits hits / #:keys)
+  ;(hrm res hits hits / _source item name)
+  )
+
 (define (get-all index #:doctype [doctype ""])
   (define (scroll-id res)
     (hr res '_scroll_id))
