@@ -51,6 +51,7 @@
 
 (module+ test-search
   (define index "RIN_Organism_prod")
+  ;(define index "*_prod")
   (define query (hash 'query (hash 'match
                                    (hash 'message (hash 'query "C57BL/6J")))
                       'size 100))
@@ -66,10 +67,75 @@
                                           'fields '("item.name")
                                           'default_operator "and"
                                           ))
-                       'size 100))
-  (define res (search index query4))
-  ;(hrm res hits hits / #:keys)
-  ;(hrm res hits hits / _source item name)
+                       'size 200))
+  (define query5 (hash 'size 50
+                       'query (hash 'bool
+                                    (hash
+                                     'must [list
+                                            (hash
+                                             'query_string
+                                             (hash
+                                              'fields '("*")
+                                              'query "IMSR JAX"
+                                              ;'query "\"C57BL/6J\""
+                                              ;'query "C57BL/6J"
+                                              'type "cross_fields"
+                                              'default_operator "and"
+                                              'lenient "true"
+                                              ))]
+                                     'should [list
+                                              (hash
+                                               'match
+                                               (hash
+                                                'item.vendors.abbreviation
+                                                (hash
+                                                 'query "IMSR"
+                                                 'boost 20000
+                                                 )))
+                                              (hash
+                                               'match
+                                               (hash
+                                                ;'item.name
+                                                'item.curie
+                                                (hash
+                                                 ;'query "\"C57BL/6J\""
+                                                 'query "JAX"
+                                                 'boost 20
+                                                 )))
+                                              (hash
+                                               'match
+                                               (hash
+                                                'item.name
+                                                (hash
+                                                 ;'query "C57BL/6J"
+                                                 'query "\"C57BL/6J\""
+                                                 'boost 2000
+                                                 )))]))))
+  (define res (search index query5))
+  (hrm res hits hits * #:keys)
+  (hrm res hits hits * _source item name)
+  (hrm res hits hits * _source item curie)
+  ;RRID:IMSR_JAX:000664
+  (define q6 (hash 'size 10
+                   'query
+                   (hash 'term
+                         (hash
+                          ;'item.language "en"  ; works
+                          ;'item.identifier "3699612"  ; works! (>_<)
+                          'item.identifier "000664" ; works sigh
+                          ;'item.name "C57BL/6J"  ; fails despite an exact from id
+                          ;'item.curie "IMSR:JAX:000664"  ; fails
+                          ;'item.name "CMHD ES cell lline GT-514F7"  ; fails despite an exact match ...
+                          ;'item.identifier "CMMR:514F7"  ; fails
+                          ;'item.vendors.abbreviation "IMSR"  ; fails
+                          ;'*.abbreviation "IMSR"  ; fails
+                          ;'item.authority.name "IMSR"  ; fails
+                          ;'item.types.name "organism"  ; fails
+                          ;'item.curie "MGI:3699612"  ; fails
+                          ))))
+  (define r2 (search index q6))
+  (hrm r2 hits hits * _source item name)
+  (hrm r2 hits hits * _source item curie)
   )
 
 (define (get-all index #:doctype [doctype ""])

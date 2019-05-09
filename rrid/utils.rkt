@@ -19,28 +19,7 @@
        #'(define (predicate value) (member value (list string-to-match ...)))]))
 
 (define (hr nested-hashes #:keys [keys-please #f] . keys)
-  ; DONE just allow user to set #:keys and have that become true? see hrm
-  ; #:keys #f does make toggeling eaiser...
-  ; DONE allow user to spec that there is a list of hashes see 'over-list and 'any-key
   ; TODO allow multiple values for keys in addition to any-key
-
-  #;
-  (define rkeys (reverse keys))
-
-  #;
-  (when (and (list? keys) (not (empty? keys)))
-    (println (car keys)))
-  #;
-  (begin
-    (when (hash? nested-hashes)
-      (println (hash-keys nested-hashes)))
-    (println keys)
-    (when (not (null? keys))
-      (println (list 'syntax? (syntax? (car keys))))
-      (println (null? (car keys)))
-      #;
-      (println (null? (cdr rkeys))))
-    (println keys-please))
 
   (let* ([carkeys (if (null? keys) keys (car keys))]
          [end (cond
