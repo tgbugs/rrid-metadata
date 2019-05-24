@@ -49,9 +49,10 @@
                 #:doctype "rin")))
 ;)
 
+
 (module+ test-search
-  (define index "RIN_Organism_prod")
-  ;(define index "*_prod")
+  ;(define index "RIN_Organism_prod")
+  (define index "*_prod")
   (define query (hash 'query (hash 'match
                                    (hash 'message (hash 'query "C57BL/6J")))
                       'size 100))
@@ -136,6 +137,26 @@
   (define r2 (search index q6))
   (hrm r2 hits hits * _source item name)
   (hrm r2 hits hits * _source item curie)
+  (define q7 (hash ;'size 10
+                   'query
+                   (hash 'query_string
+                         (hash
+                          'fields '("rrid.curie")
+                          'query "\"RRID:IMSR_JAX:000664\""
+                          #;(string-replace
+                                  (string-replace "RRID:IMSR_JAX:000664" ":" "\\:")
+                                  ;(string-replace "RRID:AB_355445" ":" "\\:")
+                                  "/" "\\/")))))
+  (define r3 (search "*_prod" q7))
+
+  (define q8 (hash 'analyzer "standard"
+                   'text "RRID:IMSR_JAX:000664"))
+
+  (define local-client (es/client "localhost" "9200" #f #f #f))
+  (define r4 (es/analyze local-client
+                         q8
+                         #:index "test_index"
+                         #:doctype ""))
   )
 
 (define (get-all index #:doctype [doctype ""])
