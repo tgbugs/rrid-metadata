@@ -59,7 +59,7 @@
     #:literals (quote)
     #:datum-literals (:keys * /)
     #:disable-colon-notation
-    #:local-conventions ([nested-hashes id]
+    #:local-conventions ([nested-hashes expr]
                          [pathspec id]
                          [match-key id]
                          )
@@ -76,5 +76,4 @@
      ]))
 
 (module+ test
-  (check-equal? (hrm res _source #:keys) '(synonyms))
-  )
+  (check-equal? (hrm res _source #:keys) '(synonyms)))
