@@ -196,6 +196,7 @@
 
 (define-syntax-class sc-terminal
   #:datum-literals (->?)  ; predicate from sibbling path value
+  ; namely to check that the sibling path value matches the value provided
   ;#:local-conventions
   #;([predicate id]
      [exact-value string]
@@ -209,7 +210,18 @@
            ;#:attr predicate-name (if (attribute predicate) () #f)
            #:attr name (cond [(attribute predicate) (generate-temporary #'predicate)]
                              [(attribute exact-value) #'exact-value]
-                             [(attribute subtree) #'"TODO retrive the value at that subtree and make sure it matches"])
+                             [(attribute subtree)
+                              ; walk the subtree path specification to find the value
+                              ; (this must be done by the enclosing syntax)
+                              ; use that value to look up the predicate function for the value in that path
+                              (generate-temporary)
+                              ;#'(λ (runtime-value) ((get-predicate )))
+                              ; #'subtree
+                              #;
+                              #'"TODO retrive the value at that subtree and make sure it matches"]
+                             [else #'WHAT-THE-WHAT]
+                             )
+           ;#:attr predicate-lookup-path #'subtree
            #:attr sc-pat (cond [(attribute predicate)
                                 #'(define-syntax-class termsc
                                     (pattern runtime-value:expr
@@ -242,6 +254,22 @@
     (datum->syntax this-syntax (apply append dat))))
 
 (define-syntax-class sc-body
+  #:attributes ([terminal.name 0]
+                [terminal.subtree 0]
+                [body 1]
+                [racket 0]
+                [syntax-classes 1]
+                [literals 1]
+                [local-conventions 1]  ; FIXME lift this out ...
+                [repr-body-racket 0]
+                [:~once 0]
+                [:~optional2 0]
+                [elip-type 0]
+
+                [name 0]
+                [range 0]
+                [head 0]
+                )
   #:disable-colon-notation
   #:local-conventions ([head sc-head]
                        [body sc-body]
@@ -293,11 +321,16 @@
            ;#:do [(pretty-write (syntax->datum #'(syntax-classes ...)))]
            #:with (literals ...) #'((~? name) body.literals ... ...)
            #:attr h-name (if (attribute head.-name) #f #'name) 
-           #:attr t-predicate (if (attribute terminal.predicate) #'terminal.name #f) 
+           #:attr t-predicate (cond [(attribute terminal.predicate) #'terminal.name]
+                                    #;
+                                    [(attribute terminal.subtree) #'terminal.name]  ; FIXME construct predicate
+                                    [else #f])
 
+           #:attr t-predicate-subtree (if (attribute terminal.subtree) #'string #f)
            #:with (local-conventions ...) #'((~? [h-name head.name])
                                              body.local-conventions ... ...
-                                             (~? [t-predicate terminal.termsc]))
+                                             (~? [t-predicate terminal.termsc]
+                                                 (~? [terminal.name t-predicate-subtree])))
            ;#:do [(pretty-write (syntax->datum #'(local-conventions ...)))]
            #:attr elip-type (if (attribute head.stop)
                                 #f
@@ -310,7 +343,7 @@
                                                 (for/or ([b (attribute body.:~optional2)]) b))
                                            #'(body.repr-body-racket ...)]
                                           [else #'((~@ body.racket (~? body.elip-type)) ...)])
-           #:attr racket-s (cond [(or has-body (attribute terminal))
+           #:attr racket-s (cond [(or has-body (attribute terminal.name))
                                   #'(name
                                      (~? (~@ (:~alt body.repr-body-racket ...) :...)
                                          (~@ actual-body ...))

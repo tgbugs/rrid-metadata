@@ -3,7 +3,7 @@
 (define (not-null? thing) (not (null? thing)))
 #;
 (debug-syntax-parse!)
-(require net/url-string sxml ; atm only for the jats bit
+(require #;net/url-string sxml ; atm only for the jats bit
          syntax/parse
          racket/pretty
          "syntax-classes.rkt"
@@ -49,6 +49,12 @@
     #:literals (stx-sxml)
     [(_ (~optional (~seq #:name syntax-name:id))
         schema:sc-body)
+     #:with syntax-name-macro (if (attribute syntax-name)
+                                  (format-id #'syntax-name
+                                             #:source #'syntax-name
+                                             "~a-macro"
+                                             (syntax-e #'syntax-name))
+                                  #f)
      #:with (lits-stx ...) (datum->syntax this-syntax (remove-duplicates (syntax->datum #'(schema.literals ...))))
      #:with top-level (if (eq? (syntax->datum #'schema.racket) (syntax->datum #'schema.name))
                           #'(schema.racket)
@@ -76,7 +82,16 @@
               (~? (begin
                     schema.syntax-classes ...
                     (define (syntax-name sxml)
-                      checker))
+                      checker)
+                    (begin-for-syntax
+                      schema.syntax-classes ...)
+                    (define-syntax (syntax-name-macro istx)
+                      (syntax-parse istx 
+                        #:disable-colon-notation
+                        #:datum-literals (lits-stx ...)
+                        #:local-conventions (schema.local-conventions ...)
+                        [(_ top-level)  ; just validate, there may be better ways
+                         istx])))
                   (λ (sxml)
                     schema.syntax-classes ...
                     checker)
@@ -363,8 +378,6 @@
 ;[(_ a b c)])
 
 ;;; primary schema definition
-(require (only-in srfi/19 string->date))
-
 #|
 structure validation syntax
 element : ssexp symbol
@@ -379,32 +392,48 @@ int>prev-or-n : INTEGER | n  ; must test INTEGER > 0-1
 child-is-pred : racket-predicate  ; must test explicitly whether absense is valid in context
 |#
 ; TODO pull these out
-[define resource-type-generals '("Material" "Software" "Service")]
-[define relation-types '("IsCompiledBy"
-                         "IsIdenticalTo"
-                         "IsDerivedFrom"
-                         "IsDescribedBy"
-                         "Describes"
-                         "Other")]
-[define contributor-types '("Distributor"  ; antibody vendors
-                            "Producer"  ; individual personal antibody maker
-                            "Other"  ; antibody vendor "synonyms" aka acquired companies
-                            "HostingInstitution"  ; parrent organization (see if this fits)
-                            "RegistrationAgency"
-                            "RegistrationAuthority")]
-[define xml-langs '("en-US")]
-[define hit-the-database (λ (value) "totally going to the database I swear" #t)]
-[define check-remote #f]
+(module predicates racket/base
+  (require (only-in srfi/19 string->date)
+           net/url-string
+           racket/string)
 
-(define (related-identifier-type? value) (member value '("URL" "DOI")))
-(define (resource-type-general? value) (member value resource-type-generals))
-(define (iso8601-tz-string? value) (string->date value "~Y-~M-~dT~H:~M:~S+"))  ; TODO make more predicate like... FIXME broken ...
-(define (contributor-type? value) (member value contributor-types))
-(define (relation-type? value) (member value relation-types))
-(define (date-type? value) (member value '("Submitted" "Updated")))
-(define (xml-lang? value) (member value xml-langs))
-(define (rrid? value) (if check-remote (hit-the-database value) (string-prefix? value "RRID:")))
-(define (uri? value) (regexp-match url-regexp value))
+
+  (provide (except-out (all-defined-out)
+                       resource-type-generals
+                       relation-types
+                       contributor-types
+                       xml-langs
+                       hit-the-database
+                       check-remote))
+  [define resource-type-generals '("Material" "Software" "Service")]
+  [define relation-types '("IsCompiledBy"
+                           "IsIdenticalTo"
+                           "IsDerivedFrom"
+                           "IsDescribedBy"
+                           "Describes"
+                           "Other")]
+  [define contributor-types '("Distributor"  ; antibody vendors
+                              "Producer"  ; individual personal antibody maker
+                              "Other"  ; antibody vendor "synonyms" aka acquired companies
+                              "HostingInstitution"  ; parrent organization (see if this fits)
+                              "RegistrationAgency"
+                              "RegistrationAuthority")]
+  [define xml-langs '("en-US")]
+  [define hit-the-database (λ (value) "totally going to the database I swear" #t)]
+  [define check-remote #f]
+
+  (define (related-identifier-type? value) (member value '("URL" "DOI")))
+  (define (resource-type-general? value) (member value resource-type-generals))
+  (define (iso8601-tz-string? value) (string->date value "~Y-~M-~dT~H:~M:~S+"))  ; TODO make more predicate like... FIXME broken ...
+  (define (contributor-type? value) (member value contributor-types))
+  (define (relation-type? value) (member value relation-types))
+  (define (date-type? value) (member value '("Submitted" "Updated")))
+  (define (xml-lang? value) (member value xml-langs))
+  (define (rrid? value) (if check-remote (hit-the-database value) (string-prefix? value "RRID:")))
+  (define (uri? value) (regexp-match url-regexp value))
+ )
+(require 'predicates
+         (for-syntax 'predicates))
 
 (define-string-predicate doi? "DOI")  ; not entirely sure why I had these implemented as I did in the first place ...
 (define-string-predicate RRID? "RRID")
@@ -769,4 +798,62 @@ child-is-pred : racket-predicate  ; must test explicitly whether absense is vali
                             #:insert_time 1111111111
                             #:curate_time 1222222222
                             #:something "We need this for the proper citation")))
+  ;; FIXME for some reason I'm not getting any source location information here
+  ;; which makes this whole exercise much, much less useful
+  (rrid-schema-macro (*TOP*
+                      (@
+                       (*NAMESPACES*
+                        (rridType
+                         "http://scicrunch.org/resources/schema/rrid-core-0")))
+                      (resource
+                       (@
+                        (xmlns "http://scicrunch.org/resources/schema/rrid-core-0"))
+                       (identifier
+                        (@ (identifierType "RRID"))
+                        "RRID:PREFIX_1234567")
+                       (properCitation
+                        (@
+                         (render-as "Proper Citation")
+                         (type "Inline Text Citation"))
+                        "(We need this for the proper citation, RRID:PREFIX_1234567)")
+                       (titles (title (@ (xml:lang "en-US")) "Fake resource"))
+                       (publisher "Fake Source")
+                       (dates
+                        (date
+                         (@ (dateType "Submitted"))
+                         "2005-03-18T01:58:31+00:00")
+                        (date (@ (dateType "Updated")) "2008-09-24T02:10:22+00:00"))
+                       (resourceType (@ (resourceTypeGeneral "Material")) "Cookies")
+                       (relatedIdentifiers
+                        (relatedIdentifier
+                         (@
+                          (relatedIdentifierType "URL")
+                          (relationType "IsIdenticalTo")
+                          (resourceTypeGeneral "Material"))
+                         "http://scicrunch.org/resolver/RRID:PREFIX_1234567")
+                        (relatedIdentifier
+                         (@
+                          (relatedIdentifierType "URL")
+                          (relationType "IsIdenticalTo")
+                          (resourceTypeGeneral "Material"))
+                         "http://n2t.net/RRID:PREFIX_1234567")
+                        (relatedIdentifier
+                         (@
+                          (relatedIdentifierType "URL")
+                          (relationType "IsIdenticalTo")
+                          (resourceTypeGeneral "Material"))
+                         "http://identifiers.org/RRID:PREFIX_1234567")
+                        (relatedIdentifier
+                         (@
+                          (relatedIdentifierType "URL")
+                          (relationType "IsDerivedFrom")
+                          (resourceTypeGeneral "Material"))
+                         "http://fake.example.org/fake/PREFIX_1234567")
+                        (relatedIdentifier
+                         (@
+                          (relatedIdentifierType "URL")
+                          (relationType "IsCompiledBy")
+                          (resourceTypeGeneral "Service"))
+                         "http://fake.example.org")))))
+  #;
   (rrid-schema rec))
